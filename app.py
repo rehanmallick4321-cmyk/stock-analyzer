@@ -1,0 +1,310 @@
+import streamlit as st
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import pandas as pd
+from analysis import fetch_stock_data, get_price_targets, generate_scenarios
+
+# 1. Page Configuration
+st.set_page_config(
+    page_title="Stock Analyzer & Bull/Bear Scenarios",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Custom Styling
+st.markdown("""
+<style>
+    .metric-card {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        border-left: 5px solid #4A90E2;
+        margin-bottom: 10px;
+    }
+    .bull-card {
+        background: linear-gradient(135deg, rgba(22, 163, 74, 0.08) 0%, rgba(34, 197, 94, 0.02) 100%);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+        border-radius: 10px;
+        padding: 20px;
+    }
+    .bear-card {
+        background: linear-gradient(135deg, rgba(220, 38, 38, 0.08) 0%, rgba(239, 68, 68, 0.02) 100%);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 10px;
+        padding: 20px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# 2. Sidebar Controls
+st.sidebar.title("🔍 Stock Selection")
+
+# Quick Buttons
+quick_tickers = ["NVDA", "AAPL", "MSFT", "TSLA", "AMZN", "GOOGL"]
+selected_quick = st.sidebar.selectbox("Quick Picks", ["Choose one..."] + quick_tickers)
+
+if selected_quick != "Choose one...":
+    default_ticker = selected_quick
+else:
+    default_ticker = "NVDA"
+
+ticker_input = st.sidebar.text_input("Or enter custom symbol:", value=default_ticker).strip().upper()
+
+timeframe = st.sidebar.selectbox(
+    "Historical Period:",
+    options=["1mo", "3mo", "6mo", "1y", "2y", "5y"],
+    index=3,
+)
+
+chart_type = st.sidebar.radio("Chart Type:", ["Candlestick", "Line"], index=0)
+show_sma = st.sidebar.checkbox("Show 20 & 50-Day Moving Averages", value=True)
+
+
+# 3. Data Fetching
+@st.cache_data(ttl=300)
+def load_data(symbol: str, period: str):
+    return fetch_stock_data(symbol, period)
+
+df, info, err = load_data(ticker_input, timeframe)
+
+if err or df is None or info is None:
+    st.error(err or "Unable to load data. Please check ticker symbol.")
+    st.stop()
+
+current_price = float(df["Close"].iloc[-1])
+prev_close = float(df["Close"].iloc[-2]) if len(df) > 1 else current_price
+day_change = current_price - prev_close
+day_change_pct = (day_change / prev_close) * 100
+
+company_name = info.get("longName", ticker_input)
+currency = info.get("currency", "USD")
+sector = info.get("sector", "N/A")
+industry = info.get("industry", "N/A")
+
+# 4. Header Section
+col_head1, col_head2 = st.columns([3, 1])
+with col_head1:
+    st.title(f"{company_name} ({ticker_input})")
+    st.caption(f"Sector: **{sector}** | Industry: **{industry}** | Currency: **{currency}**")
+
+with col_head2:
+    st.metric(
+        label="Current Price",
+        value=f"${current_price:,.2f}",
+        delta=f"{day_change:+,.2f} ({day_change_pct:+.2f}%)",
+    )
+
+st.markdown("---")
+
+# 5. Key Statistics Bar
+pe_ratio = info.get("trailingPE") or info.get("forwardPE")
+market_cap = info.get("marketCap")
+mcap_str = f"${market_cap / 1e12:.2f}T" if market_cap and market_cap >= 1e12 else (f"${market_cap / 1e9:.2f}B" if market_cap else "N/A")
+week_52_high = info.get("fiftyTwoWeekHigh")
+week_52_low = info.get("fiftyTwoWeekLow")
+
+kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+kpi1.metric("Market Cap", mcap_str)
+kpi2.metric("P/E Ratio", f"{pe_ratio:.1f}x" if pe_ratio else "N/A")
+kpi3.metric("52-Week High", f"${week_52_high:,.2f}" if week_52_high else "N/A")
+kpi4.metric("52-Week Low", f"${week_52_low:,.2f}" if week_52_low else "N/A")
+
+st.write("")
+
+# 6. Price Target & Analyst Consensus
+targets = get_price_targets(info, current_price)
+
+st.subheader("🎯 Wall Street Analyst Price Targets")
+
+t_col1, t_col2, t_col3, t_col4 = st.columns(4)
+t_col1.metric(
+    "Low Target",
+    f"${targets['low']:,.2f}" if targets["low"] else "N/A",
+    delta=f"{targets['downside_low_pct']:+.1f}%" if targets["downside_low_pct"] else None,
+    delta_color="inverse",
+)
+t_col2.metric(
+    "Consensus Mean",
+    f"${targets['mean']:,.2f}" if targets["mean"] else "N/A",
+    delta=f"{targets['upside_mean_pct']:+.1f}%" if targets["upside_mean_pct"] else None,
+)
+t_col3.metric(
+    "High Target",
+    f"${targets['high']:,.2f}" if targets["high"] else "N/A",
+    delta=f"{targets['upside_high_pct']:+.1f}%" if targets["upside_high_pct"] else None,
+)
+t_col4.metric(
+    "Consensus Rating",
+    targets["recommendation"],
+    f"Based on {targets['opinions_count']} analysts",
+    delta_color="off",
+)
+
+# Target Range Visualizer
+if targets["low"] and targets["high"] and targets["mean"]:
+    fig_target = go.Figure()
+    
+    # Range Bar
+    fig_target.add_trace(go.Bar(
+        y=["Price Range"],
+        x=[targets["high"] - targets["low"]],
+        base=[targets["low"]],
+        orientation="h",
+        marker=dict(color="rgba(100, 116, 139, 0.2)"),
+        name="Analyst Range",
+        hoverinfo="none",
+    ))
+    
+    # Points for Current, Mean, Low, High
+    fig_target.add_trace(go.Scatter(
+        x=[targets["low"]], y=["Price Range"],
+        mode="markers+text", name="Low Target",
+        text=[f"Low: ${targets['low']:.0f}"], textposition="bottom center",
+        marker=dict(color="#EF4444", size=14, symbol="diamond"),
+    ))
+    fig_target.add_trace(go.Scatter(
+        x=[current_price], y=["Price Range"],
+        mode="markers+text", name="Current Price",
+        text=[f"Current: ${current_price:.2f}"], textposition="top center",
+        marker=dict(color="#3B82F6", size=16, symbol="circle"),
+    ))
+    fig_target.add_trace(go.Scatter(
+        x=[targets["mean"]], y=["Price Range"],
+        mode="markers+text", name="Mean Target",
+        text=[f"Mean: ${targets['mean']:.0f}"], textposition="bottom center",
+        marker=dict(color="#F59E0B", size=14, symbol="triangle-up"),
+    ))
+    fig_target.add_trace(go.Scatter(
+        x=[targets["high"]], y=["Price Range"],
+        mode="markers+text", name="High Target",
+        text=[f"High: ${targets['high']:.0f}"], textposition="bottom center",
+        marker=dict(color="#10B981", size=14, symbol="diamond"),
+    ))
+
+    fig_target.update_layout(
+        height=140,
+        margin=dict(l=20, r=20, t=20, b=20),
+        xaxis=dict(showgrid=True, title="Price in USD ($)"),
+        yaxis=dict(showticklabels=False),
+        showlegend=False,
+    )
+    st.plotly_chart(fig_target, use_container_width=True)
+
+st.write("")
+
+# 7. Bull vs Bear Scenario Analysis
+st.subheader("⚖️ Bull & Bear Scenario Analysis")
+scenarios = generate_scenarios(info, df, current_price, targets)
+
+col_bull, col_bear = st.columns(2)
+
+with col_bull:
+    bull = scenarios["bull"]
+    st.markdown(f"""
+    <div class="bull-card">
+        <h3 style="color: #16A34A; margin-top: 0;">🟢 BULL CASE (Optimistic)</h3>
+        <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 5px;">
+            Target Price: ${bull['target']:,.2f} 
+            <span style="color: #16A34A; font-size: 1rem;">(+{bull['upside_pct']:.1f}% Upside)</span>
+        </p>
+        <p style="color: #555;">Key Catalysts & Tailwinds:</p>
+        <ul style="line-height: 1.8;">
+            {''.join([f"<li>{item}</li>" for item in bull['catalysts']])}
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
+with col_bear:
+    bear = scenarios["bear"]
+    st.markdown(f"""
+    <div class="bear-card">
+        <h3 style="color: #DC2626; margin-top: 0;">🔴 BEAR CASE (Pessimistic)</h3>
+        <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 5px;">
+            Target Price: ${bear['target']:,.2f} 
+            <span style="color: #DC2626; font-size: 1rem;">({bear['downside_pct']:.1f}% Downside)</span>
+        </p>
+        <p style="color: #555;">Key Risks & Headwinds:</p>
+        <ul style="line-height: 1.8;">
+            {''.join([f"<li>{item}</li>" for item in bear['risks']])}
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.write("")
+st.markdown("---")
+
+# 8. Interactive Technical Price Chart
+st.subheader("📊 Price Action & Technical Momentum")
+
+fig = make_subplots(
+    rows=2, cols=1,
+    shared_xaxes=True,
+    vertical_spacing=0.08,
+    row_heights=[0.75, 0.25],
+)
+
+if chart_type == "Candlestick":
+    fig.add_trace(go.Candlestick(
+        x=df.index,
+        open=df["Open"],
+        high=df["High"],
+        low=df["Low"],
+        close=df["Close"],
+        name="Price",
+    ), row=1, col=1)
+else:
+    fig.add_trace(go.Scatter(
+        x=df.index,
+        y=df["Close"],
+        mode="lines",
+        name="Close Price",
+        line=dict(color="#3B82F6", width=2),
+    ), row=1, col=1)
+
+if show_sma:
+    fig.add_trace(go.Scatter(
+        x=df.index, y=df["SMA_20"],
+        mode="lines", name="20 SMA",
+        line=dict(color="#F59E0B", width=1.5),
+    ), row=1, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df.index, y=df["SMA_50"],
+        mode="lines", name="50 SMA",
+        line=dict(color="#8B5CF6", width=1.5),
+    ), row=1, col=1)
+
+# Volume Bars
+colors = ["#EF4444" if row["Open"] > row["Close"] else "#10B981" for _, row in df.iterrows()]
+fig.add_trace(go.Bar(
+    x=df.index,
+    y=df["Volume"],
+    marker_color=colors,
+    name="Volume",
+    opacity=0.6,
+), row=2, col=1)
+
+fig.update_layout(
+    height=550,
+    xaxis_rangeslider_visible=False,
+    margin=dict(l=20, r=20, t=20, b=20),
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+)
+
+fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+fig.update_yaxes(title_text="Volume", row=2, col=1)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# 9. Raw Data & CSV Export Tab
+with st.expander("📁 View & Download Historical Price Data"):
+    st.dataframe(df.sort_index(ascending=False), use_container_width=True)
+    csv = df.to_csv().encode("utf-8")
+    st.download_button(
+        label=f"📥 Download {ticker_input} CSV Data",
+        data=csv,
+        file_name=f"{ticker_input}_historical_data.csv",
+        mime="text/csv",
+    )
