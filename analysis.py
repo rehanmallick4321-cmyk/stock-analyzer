@@ -2,7 +2,58 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import requests
-from typing import Dict, Any, Tuple, Optional
+import datetime
+import pytz
+import json
+from typing import Dict, Any, Tuple, Optional, List
+
+
+def get_market_status() -> Dict[str, Any]:
+    """
+    Determines whether the US Stock Market (NYSE/NASDAQ) is currently open,
+    pre-market, after-hours, or closed for the weekend/night in US Eastern Time.
+    """
+    et_tz = pytz.timezone("America/New_York")
+    now_et = datetime.datetime.now(et_tz)
+    weekday = now_et.weekday()
+
+    is_weekend = weekday >= 5
+    current_time = now_et.time()
+    market_open = datetime.time(9, 30)
+    market_close = datetime.time(16, 0)
+    pre_open = datetime.time(4, 0)
+    after_close = datetime.time(20, 0)
+
+    if is_weekend:
+        return {
+            "is_open": False,
+            "badge": "🔴 Market Closed (Weekend)",
+            "details": f"Opens Monday 9:30 AM ET (Current: {now_et.strftime('%a %I:%M %p ET')})",
+        }
+    elif market_open <= current_time < market_close:
+        return {
+            "is_open": True,
+            "badge": "🟢 US Market OPEN",
+            "details": f"Closes 4:00 PM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+        }
+    elif pre_open <= current_time < market_open:
+        return {
+            "is_open": False,
+            "badge": "🟡 Pre-Market Session",
+            "details": f"Regular opens 9:30 AM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+        }
+    elif market_close <= current_time < after_close:
+        return {
+            "is_open": False,
+            "badge": "🌙 After-Hours Trading",
+            "details": f"Ended 4:00 PM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+        }
+    else:
+        return {
+            "is_open": False,
+            "badge": "🔴 Market Closed",
+            "details": f"Reopens 9:30 AM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+        }
 
 
 def fetch_stock_data(ticker_symbol: str, period: str = "1y") -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]], Optional[str]]:
@@ -15,21 +66,17 @@ def fetch_stock_data(ticker_symbol: str, period: str = "1y") -> Tuple[Optional[p
         return None, None, "Please enter a valid stock ticker symbol."
 
     try:
-        # Create a session with browser-like user agent to avoid cloud IP blocking
         session = requests.Session()
         session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         })
 
         ticker = yf.Ticker(clean_symbol, session=session)
-        
-        # 1. Fetch historical price data with timeout protection
         df = ticker.history(period=period, timeout=10)
         
         if df is None or df.empty:
             return None, None, f"No price data found for '{clean_symbol}'. Yahoo Finance may be rate-limiting or the ticker is invalid."
 
-        # Calculate Technical Indicators
         df["SMA_20"] = df["Close"].rolling(window=20).mean()
         df["SMA_50"] = df["Close"].rolling(window=50).mean()
 
@@ -39,12 +86,10 @@ def fetch_stock_data(ticker_symbol: str, period: str = "1y") -> Tuple[Optional[p
         rs = gain / loss.replace(0, np.nan)
         df["RSI_14"] = 100 - (100 / (1 + rs))
 
-        # 2. Fetch company info safely (fallback to fast_info if info hangs or fails)
         info = {}
         try:
             info = ticker.info or {}
         except Exception:
-            # Fallback to fast_info for basic attributes if full info fails
             try:
                 fast = ticker.fast_info
                 info = {
@@ -62,10 +107,161 @@ def fetch_stock_data(ticker_symbol: str, period: str = "1y") -> Tuple[Optional[p
         return None, None, f"Failed to load data for '{clean_symbol}': {str(e)}"
 
 
+def fetch_stock_news(ticker_symbol: str) -> List[Dict[str, Any]]:
+    """
+    Fetches the latest news headlines and publishers for a given stock ticker,
+    supporting both nested `content` structures in modern yfinance and legacy formats.
+    """
+    clean_symbol = ticker_symbol.strip().upper()
+    try:
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        })
+        ticker = yf.Ticker(clean_symbol, session=session)
+        raw_news = ticker.news or []
+        
+        parsed_news = []
+        for item in raw_news[:6]:
+            c = item.get("content", item)
+            title = c.get("title") or c.get("headline")
+            
+            provider = "Market News"
+            if isinstance(c.get("provider"), dict):
+                provider = c.get("provider", {}).get("displayName", "Market News")
+            elif c.get("publisher"):
+                provider = c.get("publisher")
+
+            link = c.get("canonicalUrl", {}).get("url") if isinstance(c.get("canonicalUrl"), dict) else None
+            if not link and isinstance(c.get("clickThroughUrl"), dict):
+                link = c.get("clickThroughUrl", {}).get("url")
+            if not link:
+                link = c.get("link") or c.get("url") or "#"
+
+            pub_date = c.get("pubDate") or c.get("displayTime")
+            time_str = "Recent"
+            if pub_date:
+                try:
+                    time_str = pub_date[:16].replace("T", " ") + " UTC"
+                except Exception:
+                    pass
+
+            if title:
+                parsed_news.append({
+                    "title": title,
+                    "link": link,
+                    "publisher": provider,
+                    "time": time_str,
+                })
+        return parsed_news
+    except Exception as e:
+        print(f"Error fetching news for {clean_symbol}: {e}")
+        return []
+
+
+def analyze_news_sentiment(
+    gemini_api_key: Optional[str],
+    ticker_symbol: str,
+    news_items: List[Dict[str, Any]],
+    current_price: float,
+    company_name: str
+) -> Dict[str, Any]:
+    """
+    Uses Google Gemini to analyze market news sentiment for the stock,
+    returning a score (-10 to +10), a label, an executive summary, and key takeaways.
+    """
+    if not news_items:
+        return {
+            "score": 0,
+            "label": "NEUTRAL",
+            "color": "#64748B",
+            "summary": f"No recent news articles detected for {ticker_symbol}. Neutral sentiment assumed.",
+            "takeaways": ["Monitoring for fresh press releases and corporate disclosures."],
+        }
+
+    headlines_text = "\n".join([f"- {item['title']} (Source: {item['publisher']})" for item in news_items])
+
+    if gemini_api_key and gemini_api_key.strip():
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_api_key.strip())
+            model = genai.GenerativeModel("gemini-1.5-flash")
+
+            prompt = f"""
+You are a senior hedge fund market sentiment analyst.
+Analyze the following recent news headlines for {company_name} ({ticker_symbol}), currently trading at ${current_price:.2f}.
+
+Headlines:
+{headlines_text}
+
+Task:
+Evaluate the overall market sentiment from these news items.
+Respond ONLY with a JSON object in this exact format:
+{{
+  "score": <integer from -10 to +10, where -10 is extremely bearish, 0 is neutral, +10 is extremely bullish>,
+  "label": "BULLISH" | "SOMEWHAT BULLISH" | "NEUTRAL" | "SOMEWHAT BEARISH" | "BEARISH",
+  "summary": "2-3 sentence executive market summary explaining the primary driver of sentiment.",
+  "takeaways": [
+    "Key takeaway point 1",
+    "Key takeaway point 2",
+    "Key takeaway point 3"
+  ]
+}}
+"""
+            response = model.generate_content(
+                prompt,
+                generation_config={"response_mime_type": "application/json", "temperature": 0.2}
+            )
+
+            result_text = response.text.strip()
+            cleaned = result_text.replace("```json", "").replace("```", "").strip()
+            data = json.loads(cleaned)
+
+            score = int(data.get("score", 0))
+            color = "#16A34A" if score > 2 else ("#DC2626" if score < -2 else "#F59E0B")
+
+            return {
+                "score": score,
+                "label": data.get("label", "NEUTRAL"),
+                "color": color,
+                "summary": data.get("summary", "Analysis completed."),
+                "takeaways": data.get("takeaways", []),
+                "source": "AI-Powered (Google Gemini)",
+            }
+        except Exception as e:
+            print(f"Gemini API call failed: {e}")
+
+    # Fallback heuristic analysis
+    bullish_keywords = ["growth", "soars", "record", "profit", "beats", "upgrade", "buy", "ai", "high", "gain", "surge", "strong"]
+    bearish_keywords = ["falls", "drops", "slumps", "plunge", "loss", "downgrade", "sell", "lawsuit", "investigation", "miss", "weak", "cut"]
+
+    score = 0
+    all_text = " ".join([item["title"].lower() for item in news_items])
+    for w in bullish_keywords:
+        if w in all_text:
+            score += 2
+    for w in bearish_keywords:
+        if w in all_text:
+            score -= 2
+
+    score = max(-10, min(10, score))
+    label = "BULLISH" if score > 2 else ("BEARISH" if score < -2 else "NEUTRAL")
+    color = "#16A34A" if score > 2 else ("#DC2626" if score < -2 else "#F59E0B")
+
+    return {
+        "score": score,
+        "label": label,
+        "color": color,
+        "summary": f"Automated headline keyword scan indicates a {label.lower()} bias across {len(news_items)} recent news releases.",
+        "takeaways": [
+            f"Analyzed {len(news_items)} real-time financial articles.",
+            "Add a free Gemini API key in the sidebar to unlock neural sentiment reasoning.",
+        ],
+        "source": "Rule-Based Scanner (Add Gemini Key for AI)",
+    }
+
+
 def get_price_targets(info: Dict[str, Any], current_price: float) -> Dict[str, Any]:
-    """
-    Extracts analyst price targets and computes expected upside / downside percentages.
-    """
     high = info.get("targetHighPrice")
     low = info.get("targetLowPrice")
     mean = info.get("targetMeanPrice")
@@ -91,9 +287,6 @@ def get_price_targets(info: Dict[str, Any], current_price: float) -> Dict[str, A
 
 
 def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: float, targets: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Generates dynamic Bull and Bear scenarios based on analyst targets and fundamental/technical metrics.
-    """
     latest_close = current_price
     sma_20 = df["SMA_20"].iloc[-1] if "SMA_20" in df and not pd.isna(df["SMA_20"].iloc[-1]) else latest_close
     sma_50 = df["SMA_50"].iloc[-1] if "SMA_50" in df and not pd.isna(df["SMA_50"].iloc[-1]) else latest_close
@@ -106,13 +299,11 @@ def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: fl
     high_52 = info.get("fiftyTwoWeekHigh", latest_close)
     low_52 = info.get("fiftyTwoWeekLow", latest_close)
 
-    # Targets
     bull_target = targets["high"] if targets["high"] else round(latest_close * 1.25, 2)
     bear_target = targets["low"] if targets["low"] else round(latest_close * 0.80, 2)
     bull_upside = ((bull_target - latest_close) / latest_close) * 100
     bear_downside = ((bear_target - latest_close) / latest_close) * 100
 
-    # Bullish Catalysts
     bull_points = []
     if revenue_growth and revenue_growth > 0:
         bull_points.append(f"Accelerating Revenue Growth: Expanding at {revenue_growth * 100:.1f}% YoY.")
@@ -134,7 +325,6 @@ def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: fl
     if targets["opinions_count"] and targets["opinions_count"] > 5:
         bull_points.append(f"Wall Street Consensus: Covered by {targets['opinions_count']} analysts with a '{targets['recommendation']}' consensus.")
 
-    # Bearish Risks
     bear_points = []
     if pe and pe > 40:
         bear_points.append(f"Valuation Risk: Elevated P/E ratio ({pe:.1f}x) leaves little margin for error.")
