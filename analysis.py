@@ -1,36 +1,65 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import requests
 from typing import Dict, Any, Tuple, Optional
 
 
 def fetch_stock_data(ticker_symbol: str, period: str = "1y") -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]], Optional[str]]:
     """
-    Fetches historical OHLCV data and company fundamental information from Yahoo Finance.
-    Calculates technical indicators: 20-day SMA, 50-day SMA, and 14-day RSI.
+    Fetches historical OHLCV data and company fundamentals from Yahoo Finance.
+    Includes custom headers and timeouts to prevent hanging on cloud servers (AWS/Streamlit Cloud).
     """
+    clean_symbol = ticker_symbol.strip().upper()
+    if not clean_symbol:
+        return None, None, "Please enter a valid stock ticker symbol."
+
     try:
-        ticker = yf.Ticker(ticker_symbol.strip().upper())
-        df = ticker.history(period=period)
+        # Create a session with browser-like user agent to avoid cloud IP blocking
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
+
+        ticker = yf.Ticker(clean_symbol, session=session)
         
-        if df.empty:
-            return None, None, f"No historical price data found for '{ticker_symbol}'. Check ticker symbol."
+        # 1. Fetch historical price data with timeout protection
+        df = ticker.history(period=period, timeout=10)
         
+        if df is None or df.empty:
+            return None, None, f"No price data found for '{clean_symbol}'. Yahoo Finance may be rate-limiting or the ticker is invalid."
+
         # Calculate Technical Indicators
         df["SMA_20"] = df["Close"].rolling(window=20).mean()
         df["SMA_50"] = df["Close"].rolling(window=50).mean()
-        
-        # 14-day Relative Strength Index (RSI)
+
         delta = df["Close"].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss.replace(0, np.nan)
         df["RSI_14"] = 100 - (100 / (1 + rs))
 
-        info = ticker.info or {}
+        # 2. Fetch company info safely (fallback to fast_info if info hangs or fails)
+        info = {}
+        try:
+            info = ticker.info or {}
+        except Exception:
+            # Fallback to fast_info for basic attributes if full info fails
+            try:
+                fast = ticker.fast_info
+                info = {
+                    "longName": clean_symbol,
+                    "marketCap": getattr(fast, "market_cap", None),
+                    "fiftyTwoWeekHigh": getattr(fast, "year_high", None),
+                    "fiftyTwoWeekLow": getattr(fast, "year_low", None),
+                    "currency": getattr(fast, "currency", "USD"),
+                }
+            except Exception:
+                info = {"longName": clean_symbol, "currency": "USD"}
+
         return df, info, None
     except Exception as e:
-        return None, None, f"Error fetching data: {str(e)}"
+        return None, None, f"Failed to load data for '{clean_symbol}': {str(e)}"
 
 
 def get_price_targets(info: Dict[str, Any], current_price: float) -> Dict[str, Any]:
@@ -44,7 +73,6 @@ def get_price_targets(info: Dict[str, Any], current_price: float) -> Dict[str, A
     recommendation = (info.get("recommendationKey") or "N/A").replace("_", " ").upper()
     opinions_count = info.get("numberOfAnalystOpinions", 0)
 
-    # Calculate percentage spread if targets exist
     upside_mean_pct = ((mean - current_price) / current_price * 100) if (mean and current_price) else None
     upside_high_pct = ((high - current_price) / current_price * 100) if (high and current_price) else None
     downside_low_pct = ((low - current_price) / current_price * 100) if (low and current_price) else None
@@ -64,10 +92,7 @@ def get_price_targets(info: Dict[str, Any], current_price: float) -> Dict[str, A
 
 def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: float, targets: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Generates dynamic Bull and Bear scenarios based on:
-    - Wall Street price targets
-    - Fundamental health (P/E ratio, profit margins, revenue growth, debt)
-    - Technical momentum (price vs SMAs, RSI)
+    Generates dynamic Bull and Bear scenarios based on analyst targets and fundamental/technical metrics.
     """
     latest_close = current_price
     sma_20 = df["SMA_20"].iloc[-1] if "SMA_20" in df and not pd.isna(df["SMA_20"].iloc[-1]) else latest_close
@@ -81,16 +106,16 @@ def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: fl
     high_52 = info.get("fiftyTwoWeekHigh", latest_close)
     low_52 = info.get("fiftyTwoWeekLow", latest_close)
 
-    # 1. Determine Target Prices
+    # Targets
     bull_target = targets["high"] if targets["high"] else round(latest_close * 1.25, 2)
     bear_target = targets["low"] if targets["low"] else round(latest_close * 0.80, 2)
     bull_upside = ((bull_target - latest_close) / latest_close) * 100
     bear_downside = ((bear_target - latest_close) / latest_close) * 100
 
-    # 2. Bullish Catalysts
+    # Bullish Catalysts
     bull_points = []
     if revenue_growth and revenue_growth > 0:
-        bull_points.append(f"Accelerating Revenue Growth: Expanding at {revenue_growth * 100:.1f}% year-over-year.")
+        bull_points.append(f"Accelerating Revenue Growth: Expanding at {revenue_growth * 100:.1f}% YoY.")
     else:
         bull_points.append("Core product stability and defensive cash-flow generation.")
 
@@ -107,16 +132,16 @@ def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: fl
         bull_points.append(f"Technical momentum testing resistance near 52-week high of ${high_52:.2f}.")
 
     if targets["opinions_count"] and targets["opinions_count"] > 5:
-        bull_points.append(f"Wall Street Consensus: Covered by {targets['opinions_count']} analysts with a general '{targets['recommendation']}' consensus.")
+        bull_points.append(f"Wall Street Consensus: Covered by {targets['opinions_count']} analysts with a '{targets['recommendation']}' consensus.")
 
-    # 3. Bearish Risks
+    # Bearish Risks
     bear_points = []
     if pe and pe > 40:
-        bear_points.append(f"Valuation Risk: Elevated P/E ratio ({pe:.1f}x) leaves little margin for error if earnings miss.")
+        bear_points.append(f"Valuation Risk: Elevated P/E ratio ({pe:.1f}x) leaves little margin for error.")
     elif pe:
-        bear_points.append(f"Multiple Compression: P/E is {pe:.1f}x, which could compress during market-wide risk-off shifts.")
+        bear_points.append(f"Multiple Compression: P/E is {pe:.1f}x, which could compress during risk-off market shifts.")
     else:
-        bear_points.append("Unprofitable or low net earnings multiple vulnerability.")
+        bear_points.append("Vulnerability to earnings multiple contraction.")
 
     if debt_to_equity and debt_to_equity > 150:
         bear_points.append(f"Leverage Concerns: Elevated Debt-to-Equity ratio of {debt_to_equity:.1f}%.")
@@ -129,8 +154,6 @@ def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: fl
         bear_points.append(f"Overbought Territory: RSI is at {rsi:.1f}, signaling elevated risk of short-term pullback.")
     else:
         bear_points.append(f"Downside buffer risk towards 52-week support around ${low_52:.2f}.")
-
-    bear_points.append("Sector competition and consumer/enterprise spending headwinds.")
 
     return {
         "bull": {

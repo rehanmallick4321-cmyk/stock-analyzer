@@ -4,7 +4,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 from analysis import fetch_stock_data, get_price_targets, generate_scenarios
 
-# 1. Page Configuration
+# 1. Page Configuration (Must be the very first Streamlit call)
 st.set_page_config(
     page_title="Stock Analyzer & Bull/Bear Scenarios",
     page_icon="📈",
@@ -15,13 +15,6 @@ st.set_page_config(
 # Custom Styling
 st.markdown("""
 <style>
-    .metric-card {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        padding: 15px;
-        border-left: 5px solid #4A90E2;
-        margin-bottom: 10px;
-    }
     .bull-card {
         background: linear-gradient(135deg, rgba(22, 163, 74, 0.08) 0%, rgba(34, 197, 94, 0.02) 100%);
         border: 1px solid rgba(34, 197, 94, 0.3);
@@ -37,11 +30,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
 # 2. Sidebar Controls
 st.sidebar.title("🔍 Stock Selection")
 
-# Quick Buttons
 quick_tickers = ["NVDA", "AAPL", "MSFT", "TSLA", "AMZN", "GOOGL"]
 selected_quick = st.sidebar.selectbox("Quick Picks", ["Choose one..."] + quick_tickers)
 
@@ -61,22 +52,35 @@ timeframe = st.sidebar.selectbox(
 chart_type = st.sidebar.radio("Chart Type:", ["Candlestick", "Line"], index=0)
 show_sma = st.sidebar.checkbox("Show 20 & 50-Day Moving Averages", value=True)
 
-
-# 3. Data Fetching
-@st.cache_data(ttl=300)
+# 3. Data Fetching with try/except, Visual Spinner & Caching
+@st.cache_data(ttl=300, show_spinner=False)
 def load_data(symbol: str, period: str):
     return fetch_stock_data(symbol, period)
 
-df, info, err = load_data(ticker_input, timeframe)
+# Immediate UI feedback with spinner around API call
+df, info, err = None, None, None
+with st.spinner(f"Fetching live market data for {ticker_input}..."):
+    try:
+        df, info, err = load_data(ticker_input, timeframe)
+    except Exception as e:
+        err = f"Unexpected error while fetching data: {str(e)}"
 
-if err or df is None or info is None:
-    st.error(err or "Unable to load data. Please check ticker symbol.")
+# Guard against missing or failed data
+if err or df is None or info is None or df.empty:
+    st.error(f"⚠️ {err or 'Unable to load data. Please check ticker symbol.'}")
+    st.info("Tip: If Yahoo Finance is temporarily busy on cloud servers, try picking another stock from the sidebar or refreshing in a moment.")
     st.stop()
 
-current_price = float(df["Close"].iloc[-1])
-prev_close = float(df["Close"].iloc[-2]) if len(df) > 1 else current_price
+# Safe price calculation
+close_series = df["Close"].dropna()
+if len(close_series) == 0:
+    st.error(f"No valid price records found for {ticker_input}.")
+    st.stop()
+
+current_price = float(close_series.iloc[-1])
+prev_close = float(close_series.iloc[-2]) if len(close_series) > 1 else current_price
 day_change = current_price - prev_close
-day_change_pct = (day_change / prev_close) * 100
+day_change_pct = (day_change / prev_close * 100) if prev_close else 0.0
 
 company_name = info.get("longName", ticker_input)
 currency = info.get("currency", "USD")
@@ -113,8 +117,15 @@ kpi4.metric("52-Week Low", f"${week_52_low:,.2f}" if week_52_low else "N/A")
 
 st.write("")
 
-# 6. Price Target & Analyst Consensus
-targets = get_price_targets(info, current_price)
+# 6. Price Target & Analyst Consensus (Wrapped in try/except)
+try:
+    targets = get_price_targets(info, current_price)
+except Exception:
+    targets = {
+        "high": None, "low": None, "mean": None, "median": None,
+        "recommendation": "N/A", "opinions_count": 0,
+        "upside_mean_pct": None, "upside_high_pct": None, "downside_low_pct": None
+    }
 
 st.subheader("🎯 Wall Street Analyst Price Targets")
 
@@ -144,161 +155,166 @@ t_col4.metric(
 
 # Target Range Visualizer
 if targets["low"] and targets["high"] and targets["mean"]:
-    fig_target = go.Figure()
-    
-    # Range Bar
-    fig_target.add_trace(go.Bar(
-        y=["Price Range"],
-        x=[targets["high"] - targets["low"]],
-        base=[targets["low"]],
-        orientation="h",
-        marker=dict(color="rgba(100, 116, 139, 0.2)"),
-        name="Analyst Range",
-        hoverinfo="none",
-    ))
-    
-    # Points for Current, Mean, Low, High
-    fig_target.add_trace(go.Scatter(
-        x=[targets["low"]], y=["Price Range"],
-        mode="markers+text", name="Low Target",
-        text=[f"Low: ${targets['low']:.0f}"], textposition="bottom center",
-        marker=dict(color="#EF4444", size=14, symbol="diamond"),
-    ))
-    fig_target.add_trace(go.Scatter(
-        x=[current_price], y=["Price Range"],
-        mode="markers+text", name="Current Price",
-        text=[f"Current: ${current_price:.2f}"], textposition="top center",
-        marker=dict(color="#3B82F6", size=16, symbol="circle"),
-    ))
-    fig_target.add_trace(go.Scatter(
-        x=[targets["mean"]], y=["Price Range"],
-        mode="markers+text", name="Mean Target",
-        text=[f"Mean: ${targets['mean']:.0f}"], textposition="bottom center",
-        marker=dict(color="#F59E0B", size=14, symbol="triangle-up"),
-    ))
-    fig_target.add_trace(go.Scatter(
-        x=[targets["high"]], y=["Price Range"],
-        mode="markers+text", name="High Target",
-        text=[f"High: ${targets['high']:.0f}"], textposition="bottom center",
-        marker=dict(color="#10B981", size=14, symbol="diamond"),
-    ))
+    try:
+        fig_target = go.Figure()
+        fig_target.add_trace(go.Bar(
+            y=["Price Range"],
+            x=[targets["high"] - targets["low"]],
+            base=[targets["low"]],
+            orientation="h",
+            marker=dict(color="rgba(100, 116, 139, 0.2)"),
+            name="Analyst Range",
+            hoverinfo="none",
+        ))
+        fig_target.add_trace(go.Scatter(
+            x=[targets["low"]], y=["Price Range"],
+            mode="markers+text", name="Low Target",
+            text=[f"Low: ${targets['low']:.0f}"], textposition="bottom center",
+            marker=dict(color="#EF4444", size=14, symbol="diamond"),
+        ))
+        fig_target.add_trace(go.Scatter(
+            x=[current_price], y=["Price Range"],
+            mode="markers+text", name="Current Price",
+            text=[f"Current: ${current_price:.2f}"], textposition="top center",
+            marker=dict(color="#3B82F6", size=16, symbol="circle"),
+        ))
+        fig_target.add_trace(go.Scatter(
+            x=[targets["mean"]], y=["Price Range"],
+            mode="markers+text", name="Mean Target",
+            text=[f"Mean: ${targets['mean']:.0f}"], textposition="bottom center",
+            marker=dict(color="#F59E0B", size=14, symbol="triangle-up"),
+        ))
+        fig_target.add_trace(go.Scatter(
+            x=[targets["high"]], y=["Price Range"],
+            mode="markers+text", name="High Target",
+            text=[f"High: ${targets['high']:.0f}"], textposition="bottom center",
+            marker=dict(color="#10B981", size=14, symbol="diamond"),
+        ))
 
-    fig_target.update_layout(
-        height=140,
-        margin=dict(l=20, r=20, t=20, b=20),
-        xaxis=dict(showgrid=True, title="Price in USD ($)"),
-        yaxis=dict(showticklabels=False),
-        showlegend=False,
-    )
-    st.plotly_chart(fig_target, use_container_width=True)
+        fig_target.update_layout(
+            height=140,
+            margin=dict(l=20, r=20, t=20, b=20),
+            xaxis=dict(showgrid=True, title="Price in USD ($)"),
+            yaxis=dict(showticklabels=False),
+            showlegend=False,
+        )
+        st.plotly_chart(fig_target, use_container_width=True)
+    except Exception as e:
+        st.warning(f"Unable to render price target gauge: {str(e)}")
 
 st.write("")
 
-# 7. Bull vs Bear Scenario Analysis
+# 7. Bull vs Bear Scenario Analysis (Wrapped in try/except)
 st.subheader("⚖️ Bull & Bear Scenario Analysis")
-scenarios = generate_scenarios(info, df, current_price, targets)
+try:
+    scenarios = generate_scenarios(info, df, current_price, targets)
+    col_bull, col_bear = st.columns(2)
 
-col_bull, col_bear = st.columns(2)
+    with col_bull:
+        bull = scenarios["bull"]
+        st.markdown(f"""
+        <div class="bull-card">
+            <h3 style="color: #16A34A; margin-top: 0;">🟢 BULL CASE (Optimistic)</h3>
+            <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 5px;">
+                Target Price: ${bull['target']:,.2f} 
+                <span style="color: #16A34A; font-size: 1rem;">(+{bull['upside_pct']:.1f}% Upside)</span>
+            </p>
+            <p style="color: #555;">Key Catalysts & Tailwinds:</p>
+            <ul style="line-height: 1.8;">
+                {''.join([f"<li>{item}</li>" for item in bull['catalysts']])}
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
 
-with col_bull:
-    bull = scenarios["bull"]
-    st.markdown(f"""
-    <div class="bull-card">
-        <h3 style="color: #16A34A; margin-top: 0;">🟢 BULL CASE (Optimistic)</h3>
-        <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 5px;">
-            Target Price: ${bull['target']:,.2f} 
-            <span style="color: #16A34A; font-size: 1rem;">(+{bull['upside_pct']:.1f}% Upside)</span>
-        </p>
-        <p style="color: #555;">Key Catalysts & Tailwinds:</p>
-        <ul style="line-height: 1.8;">
-            {''.join([f"<li>{item}</li>" for item in bull['catalysts']])}
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col_bear:
-    bear = scenarios["bear"]
-    st.markdown(f"""
-    <div class="bear-card">
-        <h3 style="color: #DC2626; margin-top: 0;">🔴 BEAR CASE (Pessimistic)</h3>
-        <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 5px;">
-            Target Price: ${bear['target']:,.2f} 
-            <span style="color: #DC2626; font-size: 1rem;">({bear['downside_pct']:.1f}% Downside)</span>
-        </p>
-        <p style="color: #555;">Key Risks & Headwinds:</p>
-        <ul style="line-height: 1.8;">
-            {''.join([f"<li>{item}</li>" for item in bear['risks']])}
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    with col_bear:
+        bear = scenarios["bear"]
+        st.markdown(f"""
+        <div class="bear-card">
+            <h3 style="color: #DC2626; margin-top: 0;">🔴 BEAR CASE (Pessimistic)</h3>
+            <p style="font-size: 1.25rem; font-weight: bold; margin-bottom: 5px;">
+                Target Price: ${bear['target']:,.2f} 
+                <span style="color: #DC2626; font-size: 1rem;">({bear['downside_pct']:.1f}% Downside)</span>
+            </p>
+            <p style="color: #555;">Key Risks & Headwinds:</p>
+            <ul style="line-height: 1.8;">
+                {''.join([f"<li>{item}</li>" for item in bear['risks']])}
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+except Exception as e:
+    st.warning(f"Could not compute bull/bear scenarios: {str(e)}")
 
 st.write("")
 st.markdown("---")
 
-# 8. Interactive Technical Price Chart
+# 8. Interactive Technical Price Chart (Wrapped in try/except)
 st.subheader("📊 Price Action & Technical Momentum")
 
-fig = make_subplots(
-    rows=2, cols=1,
-    shared_xaxes=True,
-    vertical_spacing=0.08,
-    row_heights=[0.75, 0.25],
-)
+try:
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.08,
+        row_heights=[0.75, 0.25],
+    )
 
-if chart_type == "Candlestick":
-    fig.add_trace(go.Candlestick(
+    if chart_type == "Candlestick":
+        fig.add_trace(go.Candlestick(
+            x=df.index,
+            open=df["Open"],
+            high=df["High"],
+            low=df["Low"],
+            close=df["Close"],
+            name="Price",
+        ), row=1, col=1)
+    else:
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df["Close"],
+            mode="lines",
+            name="Close Price",
+            line=dict(color="#3B82F6", width=2),
+        ), row=1, col=1)
+
+    if show_sma:
+        if "SMA_20" in df:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df["SMA_20"],
+                mode="lines", name="20 SMA",
+                line=dict(color="#F59E0B", width=1.5),
+            ), row=1, col=1)
+
+        if "SMA_50" in df:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df["SMA_50"],
+                mode="lines", name="50 SMA",
+                line=dict(color="#8B5CF6", width=1.5),
+            ), row=1, col=1)
+
+    colors = ["#EF4444" if row["Open"] > row["Close"] else "#10B981" for _, row in df.iterrows()]
+    fig.add_trace(go.Bar(
         x=df.index,
-        open=df["Open"],
-        high=df["High"],
-        low=df["Low"],
-        close=df["Close"],
-        name="Price",
-    ), row=1, col=1)
-else:
-    fig.add_trace(go.Scatter(
-        x=df.index,
-        y=df["Close"],
-        mode="lines",
-        name="Close Price",
-        line=dict(color="#3B82F6", width=2),
-    ), row=1, col=1)
+        y=df["Volume"],
+        marker_color=colors,
+        name="Volume",
+        opacity=0.6,
+    ), row=2, col=1)
 
-if show_sma:
-    fig.add_trace(go.Scatter(
-        x=df.index, y=df["SMA_20"],
-        mode="lines", name="20 SMA",
-        line=dict(color="#F59E0B", width=1.5),
-    ), row=1, col=1)
+    fig.update_layout(
+        height=550,
+        xaxis_rangeslider_visible=False,
+        margin=dict(l=20, r=20, t=20, b=20),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
 
-    fig.add_trace(go.Scatter(
-        x=df.index, y=df["SMA_50"],
-        mode="lines", name="50 SMA",
-        line=dict(color="#8B5CF6", width=1.5),
-    ), row=1, col=1)
+    fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
 
-# Volume Bars
-colors = ["#EF4444" if row["Open"] > row["Close"] else "#10B981" for _, row in df.iterrows()]
-fig.add_trace(go.Bar(
-    x=df.index,
-    y=df["Volume"],
-    marker_color=colors,
-    name="Volume",
-    opacity=0.6,
-), row=2, col=1)
+    st.plotly_chart(fig, use_container_width=True)
+except Exception as e:
+    st.error(f"Error rendering chart: {str(e)}")
 
-fig.update_layout(
-    height=550,
-    xaxis_rangeslider_visible=False,
-    margin=dict(l=20, r=20, t=20, b=20),
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-)
-
-fig.update_yaxes(title_text="Price ($)", row=1, col=1)
-fig.update_yaxes(title_text="Volume", row=2, col=1)
-
-st.plotly_chart(fig, use_container_width=True)
-
-# 9. Raw Data & CSV Export Tab
+# 9. Raw Data & CSV Export
 with st.expander("📁 View & Download Historical Price Data"):
     st.dataframe(df.sort_index(ascending=False), use_container_width=True)
     csv = df.to_csv().encode("utf-8")
