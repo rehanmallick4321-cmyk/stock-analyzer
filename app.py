@@ -20,100 +20,87 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Premium Modern Glassmorphism & Color Styling
+# Modern Responsive Dark/Light Compatible Styling using Streamlit Theme Variables
 st.markdown("""
 <style>
-    /* Global Polish */
-    .stApp {
-        background: radial-gradient(circle at 10% 10%, #f8fafc 0%, #f1f5f9 100%);
-    }
-    
-    /* Session Price Cards */
-    .price-hero-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 15px;
-        align-items: center;
-        margin-top: 10px;
-        margin-bottom: 20px;
-    }
+    /* Card containers using Streamlit theme variables for 100% Dark/Light compatibility */
     .price-badge-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
+        background-color: var(--secondary-background-color, #1e293b);
+        border: 1px solid rgba(148, 163, 184, 0.25);
         border-radius: 12px;
-        padding: 14px 20px;
-        min-width: 200px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+        padding: 16px 20px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
         transition: transform 0.15s ease, border-color 0.15s ease;
     }
     .price-badge-card:hover {
         transform: translateY(-2px);
     }
     .price-badge-card.active-session {
-        border: 2px solid #3b82f6;
-        box-shadow: 0 4px 18px rgba(59, 130, 246, 0.15);
-        background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+        border: 2px solid #3b82f6 !important;
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.25);
     }
     .price-title {
-        font-size: 0.78rem;
+        font-size: 0.8rem;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: #64748b;
-        margin-bottom: 4px;
+        color: var(--text-color, #94a3b8);
+        opacity: 0.85;
+        margin-bottom: 6px;
         display: flex;
         align-items: center;
         gap: 6px;
     }
     .price-value {
-        font-size: 1.6rem;
+        font-size: 1.7rem;
         font-weight: 800;
-        color: #0f172a;
+        color: var(--text-color, #f8fafc);
         line-height: 1.2;
     }
     .price-delta {
-        font-size: 0.88rem;
+        font-size: 0.9rem;
         font-weight: 600;
-        margin-top: 2px;
+        margin-top: 4px;
     }
-    .delta-green { color: #10b981; }
-    .delta-red { color: #ef4444; }
-    .delta-neutral { color: #64748b; }
+    .delta-green { color: #10b981 !important; font-weight: 700; }
+    .delta-red { color: #ef4444 !important; font-weight: 700; }
+    .delta-neutral { color: var(--text-color, #94a3b8) !important; opacity: 0.7; }
 
-    /* Bull & Bear Modern Cards */
+    /* Bull & Bear Adaptive Cards */
     .bull-card-modern {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.09) 0%, rgba(5, 150, 105, 0.02) 100%);
-        border: 1px solid rgba(16, 185, 129, 0.35);
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.04) 100%);
+        border: 1px solid rgba(16, 185, 129, 0.4);
         border-radius: 14px;
         padding: 22px 24px;
-        box-shadow: 0 4px 20px rgba(16, 185, 129, 0.06);
+        color: var(--text-color, #f8fafc);
     }
     .bear-card-modern {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.09) 0%, rgba(185, 28, 28, 0.02) 100%);
-        border: 1px solid rgba(239, 68, 68, 0.35);
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(185, 28, 28, 0.04) 100%);
+        border: 1px solid rgba(239, 68, 68, 0.4);
         border-radius: 14px;
         padding: 22px 24px;
-        box-shadow: 0 4px 20px rgba(239, 68, 68, 0.06);
+        color: var(--text-color, #f8fafc);
     }
 
     /* KPI metric tiles */
     .kpi-tile {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
+        background-color: var(--secondary-background-color, #1e293b);
+        border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 12px;
         padding: 16px 18px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
     }
     .kpi-label {
         font-size: 0.8rem;
-        color: #64748b;
+        color: var(--text-color, #94a3b8);
+        opacity: 0.8;
         font-weight: 600;
         text-transform: uppercase;
     }
     .kpi-value {
-        font-size: 1.35rem;
+        font-size: 1.4rem;
         font-weight: 800;
-        color: #1e293b;
+        color: var(--text-color, #f8fafc);
         margin-top: 4px;
     }
 
@@ -126,26 +113,35 @@ st.markdown("""
         border-radius: 9999px;
         font-size: 0.85rem;
         font-weight: 700;
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        background-color: var(--secondary-background-color, #1e293b);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        color: var(--text-color, #f8fafc);
         margin-bottom: 12px;
     }
 
     /* News card */
     .news-card-styled {
-        background-color: #ffffff;
-        border: 1px solid #e2e8f0;
+        background-color: var(--secondary-background-color, #1e293b);
+        border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 12px;
-        padding: 16px 20px;
+        padding: 18px 22px;
         margin-bottom: 14px;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        transition: transform 0.15s ease, border-color 0.15s ease;
     }
     .news-card-styled:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.07);
         border-color: #3b82f6;
+    }
+    .news-title-link {
+        text-decoration: none;
+        color: var(--text-color, #f8fafc) !important;
+        font-size: 1.05rem;
+        font-weight: 700;
+        display: block;
+        margin-bottom: 6px;
+    }
+    .news-title-link:hover {
+        color: #3b82f6 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -274,7 +270,7 @@ def render_terminal():
             st.markdown(f"""
             <div class="price-badge-card">
                 <div class="price-title">🌅 Pre-Market Price</div>
-                <div class="price-value" style="color: #94a3b8; font-size: 1.25rem;">N/A</div>
+                <div class="price-value delta-neutral" style="font-size: 1.25rem;">N/A</div>
                 <div class="price-delta delta-neutral">Active 4:00 AM – 9:30 AM ET</div>
             </div>
             """, unsafe_allow_html=True)
@@ -302,29 +298,32 @@ def render_terminal():
             st.markdown(f"""
             <div class="price-badge-card">
                 <div class="price-title">🌙 After-Hours Price</div>
-                <div class="price-value" style="color: #94a3b8; font-size: 1.25rem;">N/A</div>
+                <div class="price-value delta-neutral" style="font-size: 1.25rem;">N/A</div>
                 <div class="price-delta delta-neutral">Active 4:00 PM – 8:00 PM ET</div>
             </div>
             """, unsafe_allow_html=True)
 
     st.write("")
 
-    # --- KPI Tiles Bar ---
+    # --- KPI Tiles Bar (Clean values, zero code reflection) ---
     pe_ratio = info.get("trailingPE") or info.get("forwardPE")
     market_cap = info.get("marketCap")
     mcap_str = f"${market_cap / 1e12:.2f}T" if market_cap and market_cap >= 1e12 else (f"${market_cap / 1e9:.2f}B" if market_cap else "N/A")
+    pe_str = f"{pe_ratio:.1f}x" if pe_ratio else "N/A"
     week_52_high = info.get("fiftyTwoWeekHigh")
     week_52_low = info.get("fiftyTwoWeekLow")
+    high_str = f"${week_52_high:,.2f}" if week_52_high else "N/A"
+    low_str = f"${week_52_low:,.2f}" if week_52_low else "N/A"
 
     k1, k2, k3, k4 = st.columns(4)
     with k1:
         st.markdown(f'<div class="kpi-tile"><div class="kpi-label">Market Capitalization</div><div class="kpi-value">{mcap_str}</div></div>', unsafe_allow_html=True)
     with k2:
-        st.markdown(f'<div class="kpi-tile"><div class="kpi-label">P/E Valuation Ratio</div><div class="kpi-value">{"f{pe_ratio:.1f}x" if pe_ratio else "N/A"}</div></div>'.replace('"f{pe_ratio:.1f}x"', f"{pe_ratio:.1f}x" if pe_ratio else "N/A"), unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-tile"><div class="kpi-label">P/E Valuation Ratio</div><div class="kpi-value">{pe_str}</div></div>', unsafe_allow_html=True)
     with k3:
-        st.markdown(f'<div class="kpi-tile"><div class="kpi-label">52-Week Peak High</div><div class="kpi-value">${week_52_high:,.2f}</div></div>' if week_52_high else '<div class="kpi-tile"><div class="kpi-label">52-Week High</div><div class="kpi-value">N/A</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-tile"><div class="kpi-label">52-Week Peak High</div><div class="kpi-value">{high_str}</div></div>', unsafe_allow_html=True)
     with k4:
-        st.markdown(f'<div class="kpi-tile"><div class="kpi-label">52-Week Floor Low</div><div class="kpi-value">${week_52_low:,.2f}</div></div>' if week_52_low else '<div class="kpi-tile"><div class="kpi-label">52-Week Low</div><div class="kpi-value">N/A</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="kpi-tile"><div class="kpi-label">52-Week Floor Low</div><div class="kpi-value">{low_str}</div></div>', unsafe_allow_html=True)
 
     st.write("")
 
@@ -350,7 +349,7 @@ def render_terminal():
                 x=[targets["high"] - targets["low"]],
                 base=[targets["low"]],
                 orientation="h",
-                marker=dict(color="rgba(203, 213, 225, 0.4)"),
+                marker=dict(color="rgba(148, 163, 184, 0.3)"),
                 name="Spread",
                 hoverinfo="none",
             ))
@@ -366,6 +365,7 @@ def render_terminal():
                 showlegend=False,
                 plot_bgcolor="rgba(0,0,0,0)",
                 paper_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="gray"),
             )
             st.plotly_chart(fig_target, use_container_width=True)
 
@@ -381,13 +381,13 @@ def render_terminal():
             <div class="bull-card-modern">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h3 style="color: #10b981; margin:0; font-size:1.35rem;">🟢 BULL CASE (Optimistic)</h3>
-                    <span style="background: rgba(16,185,129,0.18); color:#059669; padding:4px 12px; border-radius:9999px; font-weight:700; font-size:0.85rem;">+{bull['upside_pct']:.1f}% UPSIDE</span>
+                    <span style="background: rgba(16,185,129,0.22); color:#10b981; padding:4px 12px; border-radius:9999px; font-weight:700; font-size:0.85rem;">+{bull['upside_pct']:.1f}% UPSIDE</span>
                 </div>
-                <p style="font-size: 1.5rem; font-weight: 800; color:#0f172a; margin: 12px 0 6px 0;">
+                <p style="font-size: 1.5rem; font-weight: 800; margin: 12px 0 6px 0;">
                     Target Price: ${bull['target']:,.2f}
                 </p>
-                <div style="font-size:0.88rem; color:#475569; font-weight:600; margin-bottom:8px;">Growth Catalysts & Tailwinds:</div>
-                <ul style="line-height: 1.8; color: #1e293b; padding-left:20px; margin:0;">
+                <div style="font-size:0.88rem; font-weight:600; opacity:0.8; margin-bottom:8px;">Growth Catalysts & Tailwinds:</div>
+                <ul style="line-height: 1.8; padding-left:20px; margin:0;">
                     {''.join([f"<li>{item}</li>" for item in bull['catalysts']])}
                 </ul>
             </div>
@@ -399,13 +399,13 @@ def render_terminal():
             <div class="bear-card-modern">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h3 style="color: #ef4444; margin:0; font-size:1.35rem;">🔴 BEAR CASE (Pessimistic)</h3>
-                    <span style="background: rgba(239,68,68,0.18); color:#dc2626; padding:4px 12px; border-radius:9999px; font-weight:700; font-size:0.85rem;">{bear['downside_pct']:.1f}% DOWNSIDE</span>
+                    <span style="background: rgba(239,68,68,0.22); color:#ef4444; padding:4px 12px; border-radius:9999px; font-weight:700; font-size:0.85rem;">{bear['downside_pct']:.1f}% DOWNSIDE</span>
                 </div>
-                <p style="font-size: 1.5rem; font-weight: 800; color:#0f172a; margin: 12px 0 6px 0;">
+                <p style="font-size: 1.5rem; font-weight: 800; margin: 12px 0 6px 0;">
                     Target Price: ${bear['target']:,.2f}
                 </p>
-                <div style="font-size:0.88rem; color:#475569; font-weight:600; margin-bottom:8px;">Risk Factors & Headwinds:</div>
-                <ul style="line-height: 1.8; color: #1e293b; padding-left:20px; margin:0;">
+                <div style="font-size:0.88rem; font-weight:600; opacity:0.8; margin-bottom:8px;">Risk Factors & Headwinds:</div>
+                <ul style="line-height: 1.8; padding-left:20px; margin:0;">
                     {''.join([f"<li>{item}</li>" for item in bear['risks']])}
                 </ul>
             </div>
@@ -451,10 +451,11 @@ def render_terminal():
             xaxis_rangeslider_visible=False,
             margin=dict(l=20, r=20, t=20, b=20),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            plot_bgcolor="#ffffff",
-            paper_bgcolor="#ffffff",
-            xaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
-            yaxis=dict(showgrid=True, gridcolor="#f1f5f9", title="Price ($)"),
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="gray"),
+            xaxis=dict(showgrid=True, gridcolor="rgba(148, 163, 184, 0.15)"),
+            yaxis=dict(showgrid=True, gridcolor="rgba(148, 163, 184, 0.15)", title="Price ($)"),
             yaxis2=dict(showgrid=False, title="Volume"),
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -479,18 +480,18 @@ def render_terminal():
                 fig_gauge = go.Figure(go.Indicator(
                     mode="gauge+number",
                     value=sentiment["score"],
-                    title={'text': f"<b>Sentiment: {sentiment['label']}</b>", 'font': {'size': 16}},
+                    title={'text': f"<b>Sentiment: {sentiment['label']}</b>", 'font': {'size': 16, 'color': "gray"}},
                     gauge={
                         'axis': {'range': [-10, 10], 'tickwidth': 1, 'tickcolor': "#94a3b8"},
                         'bar': {'color': sentiment["color"], 'thickness': 0.3},
                         'steps': [
-                            {'range': [-10, -3], 'color': "rgba(239, 68, 68, 0.15)"},
-                            {'range': [-3, 3], 'color': "rgba(245, 158, 11, 0.15)"},
-                            {'range': [3, 10], 'color': "rgba(16, 185, 129, 0.15)"},
+                            {'range': [-10, -3], 'color': "rgba(239, 68, 68, 0.2)"},
+                            {'range': [-3, 3], 'color': "rgba(245, 158, 11, 0.2)"},
+                            {'range': [3, 10], 'color': "rgba(16, 185, 129, 0.2)"},
                         ],
                     }
                 ))
-                fig_gauge.update_layout(height=260, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)")
+                fig_gauge.update_layout(height=260, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)", font=dict(color="gray"))
                 st.plotly_chart(fig_gauge, use_container_width=True)
 
             with sg2:
@@ -507,10 +508,10 @@ def render_terminal():
             for item in news_items:
                 st.markdown(f"""
                 <div class="news-card-styled">
-                    <a href="{item['link']}" target="_blank" style="text-decoration: none; color: #0f172a; font-size: 1.05rem; font-weight: 700; display:block; margin-bottom: 6px;">
+                    <a href="{item['link']}" target="_blank" class="news-title-link">
                         🔗 {item['title']}
                     </a>
-                    <div style="font-size: 0.82rem; color: #64748b; font-weight: 500;">
+                    <div style="font-size: 0.84rem; opacity: 0.75; font-weight: 500;">
                         Source: <span style="color: #3b82f6; font-weight: 600;">{item['publisher']}</span> &nbsp;•&nbsp; Published: {item['time']}
                     </div>
                 </div>
