@@ -12,139 +12,13 @@ from analysis import (
     analyze_news_sentiment,
 )
 
-# 1. Page Configuration (Must be first)
+# 1. Page Configuration
 st.set_page_config(
     page_title="Stock Analyzer & Live Market Terminal",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-# Modern Responsive Dark/Light Compatible Styling using Streamlit Theme Variables
-st.markdown("""
-<style>
-    /* Card containers using Streamlit theme variables for 100% Dark/Light compatibility */
-    .price-badge-card {
-        background-color: var(--secondary-background-color, #1e293b);
-        border: 1px solid rgba(148, 163, 184, 0.25);
-        border-radius: 12px;
-        padding: 16px 20px;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
-        transition: transform 0.15s ease, border-color 0.15s ease;
-    }
-    .price-badge-card:hover {
-        transform: translateY(-2px);
-    }
-    .price-badge-card.active-session {
-        border: 2px solid #3b82f6 !important;
-        box-shadow: 0 0 15px rgba(59, 130, 246, 0.25);
-    }
-    .price-title {
-        font-size: 0.8rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        color: var(--text-color, #94a3b8);
-        opacity: 0.85;
-        margin-bottom: 6px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .price-value {
-        font-size: 1.7rem;
-        font-weight: 800;
-        color: var(--text-color, #f8fafc);
-        line-height: 1.2;
-    }
-    .price-delta {
-        font-size: 0.9rem;
-        font-weight: 600;
-        margin-top: 4px;
-    }
-    .delta-green { color: #10b981 !important; font-weight: 700; }
-    .delta-red { color: #ef4444 !important; font-weight: 700; }
-    .delta-neutral { color: var(--text-color, #94a3b8) !important; opacity: 0.7; }
-
-    /* Bull & Bear Adaptive Cards */
-    .bull-card-modern {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.04) 100%);
-        border: 1px solid rgba(16, 185, 129, 0.4);
-        border-radius: 14px;
-        padding: 22px 24px;
-        color: var(--text-color, #f8fafc);
-    }
-    .bear-card-modern {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(185, 28, 28, 0.04) 100%);
-        border: 1px solid rgba(239, 68, 68, 0.4);
-        border-radius: 14px;
-        padding: 22px 24px;
-        color: var(--text-color, #f8fafc);
-    }
-
-    /* KPI metric tiles */
-    .kpi-tile {
-        background-color: var(--secondary-background-color, #1e293b);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        border-radius: 12px;
-        padding: 16px 18px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-    }
-    .kpi-label {
-        font-size: 0.8rem;
-        color: var(--text-color, #94a3b8);
-        opacity: 0.8;
-        font-weight: 600;
-        text-transform: uppercase;
-    }
-    .kpi-value {
-        font-size: 1.4rem;
-        font-weight: 800;
-        color: var(--text-color, #f8fafc);
-        margin-top: 4px;
-    }
-
-    /* Live Session Status Pill */
-    .session-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 16px;
-        border-radius: 9999px;
-        font-size: 0.85rem;
-        font-weight: 700;
-        background-color: var(--secondary-background-color, #1e293b);
-        border: 1px solid rgba(148, 163, 184, 0.25);
-        color: var(--text-color, #f8fafc);
-        margin-bottom: 12px;
-    }
-
-    /* News card */
-    .news-card-styled {
-        background-color: var(--secondary-background-color, #1e293b);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        border-radius: 12px;
-        padding: 18px 22px;
-        margin-bottom: 14px;
-        transition: transform 0.15s ease, border-color 0.15s ease;
-    }
-    .news-card-styled:hover {
-        transform: translateY(-2px);
-        border-color: #3b82f6;
-    }
-    .news-title-link {
-        text-decoration: none;
-        color: var(--text-color, #f8fafc) !important;
-        font-size: 1.05rem;
-        font-weight: 700;
-        display: block;
-        margin-bottom: 6px;
-    }
-    .news-title-link:hover {
-        color: #3b82f6 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # 2. Sidebar Controls
 st.sidebar.title("⚡ Stock Terminal")
@@ -217,95 +91,71 @@ def render_terminal():
     ext_data = get_pre_post_market(info, current_price)
     active_session = market_info.get("session", "REGULAR")
 
-    # Header Top Bar
-    st.markdown(f'''
-    <div class="session-pill">
-        <span style="color: {market_info["color"]}; font-size: 1.1rem;">●</span>
-        <span><b>{market_info["badge"]}</b> &nbsp;•&nbsp; {market_info["details"]}</span>
-    </div>
-    ''', unsafe_allow_html=True)
+    # Header Bar & Market Status Badge
+    status_icon = "🟢" if active_session == "REGULAR" else ("🟡" if active_session == "PRE" else ("🌙" if active_session == "POST" else "🔴"))
+    st.info(f"{status_icon} **{market_info['badge']}** &nbsp;•&nbsp; {market_info['details']}")
 
     st.title(f"{company_name} ({ticker_input})")
-    st.caption(f"Sector: **{sector}** &nbsp;•&nbsp; Industry: **{industry}** &nbsp;•&nbsp; Currency: **{currency}**")
+    st.caption(f"Sector: **{sector}** | Industry: **{industry}** | Currency: **{currency}**")
 
-    # --- Live Multi-Session Price Cards (Regular, Pre-Market, After-Hours) ---
+    # --- Live Multi-Session Price Cards (Native Streamlit Containers - 0 HTML Bugs) ---
     col_reg, col_pre, col_post = st.columns(3)
 
     # 1. Regular Market Price Card
-    reg_active = "active-session" if active_session == "REGULAR" else ""
-    reg_class = "delta-green" if day_change >= 0 else "delta-red"
-    reg_sign = "+" if day_change >= 0 else ""
     with col_reg:
-        st.markdown(f"""
-        <div class="price-badge-card {reg_active}">
-            <div class="price-title">
-                <span>🏢 Regular Market</span>
-                {"<span style='color:#3b82f6; font-size:0.7rem;'>● ACTIVE</span>" if active_session == "REGULAR" else ""}
-            </div>
-            <div class="price-value">${current_price:,.2f}</div>
-            <div class="price-delta {reg_class}">{reg_sign}{day_change:,.2f} ({reg_sign}{day_change_pct:.2f}%)</div>
-        </div>
-        """, unsafe_allow_html=True)
+        with st.container(border=True):
+            reg_label = "🏢 REGULAR MARKET (ACTIVE)" if active_session == "REGULAR" else "🏢 Regular Market"
+            st.metric(
+                label=reg_label,
+                value=f"${current_price:,.2f}",
+                delta=f"{day_change:+,.2f} ({day_change_pct:+.2f}%)",
+            )
 
     # 2. Pre-Market Price Card
-    pre_active = "active-session" if active_session == "PRE" else ""
-    pre_val = ext_data["pre_price"]
     with col_pre:
-        if pre_val:
-            pre_change = ext_data["pre_change"] or 0.0
-            pre_pct = ext_data["pre_pct"] or 0.0
-            pre_class = "delta-green" if pre_pct >= 0 else "delta-red"
-            pre_sign = "+" if pre_pct >= 0 else ""
-            st.markdown(f"""
-            <div class="price-badge-card {pre_active}">
-                <div class="price-title">
-                    <span>🌅 Pre-Market Price</span>
-                    {"<span style='color:#f59e0b; font-size:0.7rem;'>● LIVE</span>" if active_session == "PRE" else ""}
-                </div>
-                <div class="price-value">${pre_val:,.2f}</div>
-                <div class="price-delta {pre_class}">{pre_sign}{pre_change:,.2f} ({pre_sign}{pre_pct:.2f}%) vs Close</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="price-badge-card">
-                <div class="price-title">🌅 Pre-Market Price</div>
-                <div class="price-value delta-neutral" style="font-size: 1.25rem;">N/A</div>
-                <div class="price-delta delta-neutral">Active 4:00 AM – 9:30 AM ET</div>
-            </div>
-            """, unsafe_allow_html=True)
+        with st.container(border=True):
+            pre_val = ext_data["pre_price"]
+            if pre_val:
+                pre_change = ext_data["pre_change"] or 0.0
+                pre_pct = ext_data["pre_pct"] or 0.0
+                pre_label = "🌅 PRE-MARKET (LIVE NOW)" if active_session == "PRE" else "🌅 Pre-Market Price"
+                st.metric(
+                    label=pre_label,
+                    value=f"${pre_val:,.2f}",
+                    delta=f"{pre_change:+,.2f} ({pre_pct:+.2f}%) vs Close",
+                )
+            else:
+                st.metric(
+                    label="🌅 Pre-Market Price",
+                    value="Closed / N/A",
+                    delta="Active 4:00 AM – 9:30 AM ET",
+                    delta_color="off",
+                )
 
     # 3. Post-Market / After-Hours Price Card
-    post_active = "active-session" if active_session == "POST" else ""
-    post_val = ext_data["post_price"]
     with col_post:
-        if post_val:
-            post_change = ext_data["post_change"] or 0.0
-            post_pct = ext_data["post_pct"] or 0.0
-            post_class = "delta-green" if post_pct >= 0 else "delta-red"
-            post_sign = "+" if post_pct >= 0 else ""
-            st.markdown(f"""
-            <div class="price-badge-card {post_active}">
-                <div class="price-title">
-                    <span>🌙 After-Hours Price</span>
-                    {"<span style='color:#8b5cf6; font-size:0.7rem;'>● LIVE</span>" if active_session == "POST" else ""}
-                </div>
-                <div class="price-value">${post_val:,.2f}</div>
-                <div class="price-delta {post_class}">{post_sign}{post_change:,.2f} ({post_sign}{post_pct:.2f}%) vs Close</div>
-            </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-            <div class="price-badge-card">
-                <div class="price-title">🌙 After-Hours Price</div>
-                <div class="price-value delta-neutral" style="font-size: 1.25rem;">N/A</div>
-                <div class="price-delta delta-neutral">Active 4:00 PM – 8:00 PM ET</div>
-            </div>
-            """, unsafe_allow_html=True)
+        with st.container(border=True):
+            post_val = ext_data["post_price"]
+            if post_val:
+                post_change = ext_data["post_change"] or 0.0
+                post_pct = ext_data["post_pct"] or 0.0
+                post_label = "🌙 AFTER-HOURS (LIVE NOW)" if active_session == "POST" else "🌙 After-Hours Price"
+                st.metric(
+                    label=post_label,
+                    value=f"${post_val:,.2f}",
+                    delta=f"{post_change:+,.2f} ({post_pct:+.2f}%) vs Close",
+                )
+            else:
+                st.metric(
+                    label="🌙 After-Hours Price",
+                    value="Closed / N/A",
+                    delta="Active 4:00 PM – 8:00 PM ET",
+                    delta_color="off",
+                )
 
     st.write("")
 
-    # --- KPI Tiles Bar (Clean values, zero code reflection) ---
+    # --- KPI Tiles Bar ---
     pe_ratio = info.get("trailingPE") or info.get("forwardPE")
     market_cap = info.get("marketCap")
     mcap_str = f"${market_cap / 1e12:.2f}T" if market_cap and market_cap >= 1e12 else (f"${market_cap / 1e9:.2f}B" if market_cap else "N/A")
@@ -316,14 +166,10 @@ def render_terminal():
     low_str = f"${week_52_low:,.2f}" if week_52_low else "N/A"
 
     k1, k2, k3, k4 = st.columns(4)
-    with k1:
-        st.markdown(f'<div class="kpi-tile"><div class="kpi-label">Market Capitalization</div><div class="kpi-value">{mcap_str}</div></div>', unsafe_allow_html=True)
-    with k2:
-        st.markdown(f'<div class="kpi-tile"><div class="kpi-label">P/E Valuation Ratio</div><div class="kpi-value">{pe_str}</div></div>', unsafe_allow_html=True)
-    with k3:
-        st.markdown(f'<div class="kpi-tile"><div class="kpi-label">52-Week Peak High</div><div class="kpi-value">{high_str}</div></div>', unsafe_allow_html=True)
-    with k4:
-        st.markdown(f'<div class="kpi-tile"><div class="kpi-label">52-Week Floor Low</div><div class="kpi-value">{low_str}</div></div>', unsafe_allow_html=True)
+    k1.metric("Market Capitalization", mcap_str)
+    k2.metric("P/E Valuation Ratio", pe_str)
+    k3.metric("52-Week Peak High", high_str)
+    k4.metric("52-Week Floor Low", low_str)
 
     st.write("")
 
@@ -377,39 +223,21 @@ def render_terminal():
         cbull, cbear = st.columns(2)
         with cbull:
             bull = scenarios["bull"]
-            st.markdown(f"""
-            <div class="bull-card-modern">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="color: #10b981; margin:0; font-size:1.35rem;">🟢 BULL CASE (Optimistic)</h3>
-                    <span style="background: rgba(16,185,129,0.22); color:#10b981; padding:4px 12px; border-radius:9999px; font-weight:700; font-size:0.85rem;">+{bull['upside_pct']:.1f}% UPSIDE</span>
-                </div>
-                <p style="font-size: 1.5rem; font-weight: 800; margin: 12px 0 6px 0;">
-                    Target Price: ${bull['target']:,.2f}
-                </p>
-                <div style="font-size:0.88rem; font-weight:600; opacity:0.8; margin-bottom:8px;">Growth Catalysts & Tailwinds:</div>
-                <ul style="line-height: 1.8; padding-left:20px; margin:0;">
-                    {''.join([f"<li>{item}</li>" for item in bull['catalysts']])}
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
+            with st.container(border=True):
+                st.subheader("🟢 BULL CASE (Optimistic)")
+                st.metric("Target Price", f"${bull['target']:,.2f}", delta=f"+{bull['upside_pct']:.1f}% Upside")
+                st.write("**Growth Catalysts & Tailwinds:**")
+                for item in bull["catalysts"]:
+                    st.markdown(f"• {item}")
 
         with cbear:
             bear = scenarios["bear"]
-            st.markdown(f"""
-            <div class="bear-card-modern">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="color: #ef4444; margin:0; font-size:1.35rem;">🔴 BEAR CASE (Pessimistic)</h3>
-                    <span style="background: rgba(239,68,68,0.22); color:#ef4444; padding:4px 12px; border-radius:9999px; font-weight:700; font-size:0.85rem;">{bear['downside_pct']:.1f}% DOWNSIDE</span>
-                </div>
-                <p style="font-size: 1.5rem; font-weight: 800; margin: 12px 0 6px 0;">
-                    Target Price: ${bear['target']:,.2f}
-                </p>
-                <div style="font-size:0.88rem; font-weight:600; opacity:0.8; margin-bottom:8px;">Risk Factors & Headwinds:</div>
-                <ul style="line-height: 1.8; padding-left:20px; margin:0;">
-                    {''.join([f"<li>{item}</li>" for item in bear['risks']])}
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
+            with st.container(border=True):
+                st.subheader("🔴 BEAR CASE (Pessimistic)")
+                st.metric("Target Price", f"${bear['target']:,.2f}", delta=f"{bear['downside_pct']:.1f}% Downside", delta_color="inverse")
+                st.write("**Risk Factors & Headwinds:**")
+                for item in bear["risks"]:
+                    st.markdown(f"• {item}")
 
         st.write("")
         st.markdown("---")
@@ -506,16 +334,9 @@ def render_terminal():
             st.markdown("---")
             st.subheader(f"📰 Latest News Articles & Press Releases ({len(news_items)})")
             for item in news_items:
-                st.markdown(f"""
-                <div class="news-card-styled">
-                    <a href="{item['link']}" target="_blank" class="news-title-link">
-                        🔗 {item['title']}
-                    </a>
-                    <div style="font-size: 0.84rem; opacity: 0.75; font-weight: 500;">
-                        Source: <span style="color: #3b82f6; font-weight: 600;">{item['publisher']}</span> &nbsp;•&nbsp; Published: {item['time']}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                with st.container(border=True):
+                    st.markdown(f"**[{item['title']}]({item['link']})**")
+                    st.caption(f"Source: **{item['publisher']}** &nbsp;•&nbsp; Published: {item['time']}")
 
 
 # Auto-refresh execution
