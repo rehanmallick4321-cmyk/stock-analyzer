@@ -10,8 +10,8 @@ from typing import Dict, Any, Tuple, Optional, List
 
 def get_market_status() -> Dict[str, Any]:
     """
-    Determines whether the US Stock Market (NYSE/NASDAQ) is currently open,
-    pre-market, after-hours, or closed for the weekend/night in US Eastern Time.
+    Determines whether the US Stock Market (NYSE/NASDAQ) is currently in
+    Regular Trading, Pre-Market, After-Hours, or Closed in US Eastern Time.
     """
     et_tz = pytz.timezone("America/New_York")
     now_et = datetime.datetime.now(et_tz)
@@ -26,34 +26,69 @@ def get_market_status() -> Dict[str, Any]:
 
     if is_weekend:
         return {
-            "is_open": False,
+            "session": "CLOSED",
             "badge": "🔴 Market Closed (Weekend)",
+            "color": "#EF4444",
             "details": f"Opens Monday 9:30 AM ET (Current: {now_et.strftime('%a %I:%M %p ET')})",
         }
     elif market_open <= current_time < market_close:
         return {
-            "is_open": True,
-            "badge": "🟢 US Market OPEN",
+            "session": "REGULAR",
+            "badge": "🟢 US Market Live",
+            "color": "#10B981",
             "details": f"Closes 4:00 PM ET (Current: {now_et.strftime('%I:%M %p ET')})",
         }
     elif pre_open <= current_time < market_open:
         return {
-            "is_open": False,
+            "session": "PRE",
             "badge": "🟡 Pre-Market Session",
-            "details": f"Regular opens 9:30 AM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+            "color": "#F59E0B",
+            "details": f"Regular bell at 9:30 AM ET (Current: {now_et.strftime('%I:%M %p ET')})",
         }
     elif market_close <= current_time < after_close:
         return {
-            "is_open": False,
-            "badge": "🌙 After-Hours Trading",
-            "details": f"Ended 4:00 PM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+            "session": "POST",
+            "badge": "🌙 After-Hours Session",
+            "color": "#8B5CF6",
+            "details": f"After-hours closes 8:00 PM ET (Current: {now_et.strftime('%I:%M %p ET')})",
         }
     else:
         return {
-            "is_open": False,
-            "badge": "🔴 Market Closed",
-            "details": f"Reopens 9:30 AM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+            "session": "CLOSED",
+            "badge": "🔴 Market Closed (Night)",
+            "color": "#64748B",
+            "details": f"Pre-market opens 4:00 AM ET (Current: {now_et.strftime('%I:%M %p ET')})",
         }
+
+
+def get_pre_post_market(info: Dict[str, Any], regular_price: float) -> Dict[str, Any]:
+    """
+    Extracts live Pre-Market and Post-Market (After-Hours) trading prices and percentage moves.
+    """
+    pre_price = info.get("preMarketPrice")
+    pre_pct = info.get("preMarketChangePercent")
+    pre_change = info.get("preMarketChange")
+
+    if pre_price and not pre_change and regular_price:
+        pre_change = pre_price - regular_price
+        pre_pct = (pre_change / regular_price) * 100
+
+    post_price = info.get("postMarketPrice")
+    post_pct = info.get("postMarketChangePercent")
+    post_change = info.get("postMarketChange")
+
+    if post_price and not post_change and regular_price:
+        post_change = post_price - regular_price
+        post_pct = (post_change / regular_price) * 100
+
+    return {
+        "pre_price": pre_price,
+        "pre_change": pre_change,
+        "pre_pct": pre_pct,
+        "post_price": post_price,
+        "post_change": post_change,
+        "post_pct": post_pct,
+    }
 
 
 def fetch_stock_data(ticker_symbol: str, period: str = "1y") -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]], Optional[str]]:
@@ -218,7 +253,7 @@ Respond ONLY with a JSON object in this exact format:
             data = json.loads(cleaned)
 
             score = int(data.get("score", 0))
-            color = "#16A34A" if score > 2 else ("#DC2626" if score < -2 else "#F59E0B")
+            color = "#10B981" if score > 2 else ("#EF4444" if score < -2 else "#F59E0B")
 
             return {
                 "score": score,
@@ -246,7 +281,7 @@ Respond ONLY with a JSON object in this exact format:
 
     score = max(-10, min(10, score))
     label = "BULLISH" if score > 2 else ("BEARISH" if score < -2 else "NEUTRAL")
-    color = "#16A34A" if score > 2 else ("#DC2626" if score < -2 else "#F59E0B")
+    color = "#10B981" if score > 2 else ("#EF4444" if score < -2 else "#F59E0B")
 
     return {
         "score": score,
