@@ -15,176 +15,185 @@ from analysis import (
 
 # 1. Page Configuration
 st.set_page_config(
-    page_title="APEX // Global Market Terminal",
-    page_icon="💎",
+    page_title="APEX TRADER // Pro Terminal",
+    page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="collapsed",  # Mobile best practice: start collapsed for clean view
+    initial_sidebar_state="collapsed",  # Clean mobile-first default
 )
 
-# Mobile-First Responsive CSS Styling
+# Mobile-First Professional Trader UI Styling
 st.markdown("""
 <style>
-    /* Mobile-first responsive spacing & touch optimizations */
-    @media (max-width: 768px) {
-        .block-container {
-            padding-top: 1rem !important;
-            padding-bottom: 2rem !important;
-            padding-left: 0.75rem !important;
-            padding-right: 0.75rem !important;
-        }
-        h1 {
-            font-size: 1.6rem !important;
-            line-height: 1.25 !important;
-        }
-        h2, h3 {
-            font-size: 1.25rem !important;
-        }
-        /* Allow columns to wrap cleanly on mobile screens */
-        [data-testid="column"] {
-            min-width: 48% !important;
-            margin-bottom: 8px !important;
-        }
-        .stMetric {
-            padding: 6px !important;
-        }
-        .stMetric label {
-            font-size: 0.78rem !important;
-        }
-        .stMetric div[data-testid="stMetricValue"] {
-            font-size: 1.4rem !important;
-        }
-    }
-
-    /* Clean typography & card styling */
-    .hero-price-container {
-        border-radius: 12px;
-        padding: 4px;
+    /* Trader Terminal Styling */
+    .trader-brand {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
         margin-bottom: 12px;
     }
-    
-    .status-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 12px;
-        border-radius: 9999px;
-        font-size: 0.82rem;
+    .terminal-badge {
+        font-size: 0.75rem;
         font-weight: 700;
-        background-color: var(--secondary-background-color, #1e293b);
-        border: 1px solid rgba(148, 163, 184, 0.25);
-        color: var(--text-color, #f8fafc);
-        margin-bottom: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    
+    /* Mobile responsive optimizations */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 0.75rem !important;
+            padding-bottom: 1.5rem !important;
+            padding-left: 0.6rem !important;
+            padding-right: 0.6rem !important;
+        }
+        h1 {
+            font-size: 1.5rem !important;
+            line-height: 1.2 !important;
+        }
+        h2, h3 {
+            font-size: 1.2rem !important;
+        }
+        [data-testid="column"] {
+            min-width: 48% !important;
+            margin-bottom: 6px !important;
+        }
+        .stMetric {
+            padding: 4px !important;
+        }
+        .stMetric div[data-testid="stMetricValue"] {
+            font-size: 1.35rem !important;
+        }
     }
 
-    /* Prevent charts from stealing mobile scroll */
+    /* Plotly mobile touch protection */
     .js-plotly-plot {
         touch-action: pan-y !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. Sidebar Controls & Branding
-st.sidebar.markdown("""
-<div style="margin-bottom: 15px;">
-    <h2 style="margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em;">
-        💎 APEX TERMINAL
-    </h2>
-    <div style="font-size: 0.75rem; opacity: 0.75; font-weight: 600; text-transform: uppercase;">
-        Global Equity & AI Intelligence
+# 2. Trader Terminal Header
+st.markdown("""
+<div class="trader-brand">
+    <div>
+        <h2 style="margin: 0; font-size: 1.6rem; font-weight: 900; letter-spacing: -0.03em;">
+            ⚡ APEX TRADER <span style="font-weight: 400; opacity: 0.75; font-size: 1.1rem;">// PRO TERMINAL</span>
+        </h2>
+        <div style="font-size: 0.75rem; opacity: 0.7; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin-top: 2px;">
+            Institutional Equity Feed & AI Quantitative Risk Engine
+        </div>
+    </div>
+    <div>
+        <span class="terminal-badge">LIVE DESK v2.6</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# Market / Region Selector
-market_region = st.sidebar.radio(
-    "Select Market Exchange:",
-    ["🇮🇳 Indian Markets (NSE)", "🇺🇸 US Markets (NYSE/NASDAQ)"],
-    index=0,
-)
+# 3. Horizontal Mobile-First Search & Control Bar
+# Trader Quick Catalogs
+INDIAN_STOCKS = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "TATAMOTORS", "ITC", "ICICIBANK", "SBIN", "BHARTIARTL", "ZOMATO"]
+US_STOCKS = ["NVDA", "AAPL", "MSFT", "TSLA", "AMZN", "GOOGL", "META"]
 
-INDIAN_STOCKS = {
-    "RELIANCE": {"symbol": "RELIANCE.NS", "label": "RELIANCE • Reliance Industries"},
-    "TCS": {"symbol": "TCS.NS", "label": "TCS • Tata Consultancy Services"},
-    "HDFCBANK": {"symbol": "HDFCBANK.NS", "label": "HDFCBANK • HDFC Bank"},
-    "INFY": {"symbol": "INFY.NS", "label": "INFY • Infosys Limited"},
-    "TATAMOTORS": {"symbol": "TATAMOTORS.NS", "label": "TATAMOTORS • Tata Motors"},
-    "ITC": {"symbol": "ITC.NS", "label": "ITC • ITC Limited"},
-    "ICICIBANK": {"symbol": "ICICIBANK.NS", "label": "ICICIBANK • ICICI Bank"},
-    "SBIN": {"symbol": "SBIN.NS", "label": "SBIN • State Bank of India"},
-    "BHARTIARTL": {"symbol": "BHARTIARTL.NS", "label": "BHARTIARTL • Bharti Airtel"},
-    "ZOMATO": {"symbol": "ZOMATO.NS", "label": "ZOMATO • Zomato Limited"},
-}
+if "search_query" not in st.session_state:
+    st.session_state.search_query = "RELIANCE"
 
-US_STOCKS = {
-    "NVDA": {"symbol": "NVDA", "label": "NVDA • NVIDIA Corporation"},
-    "AAPL": {"symbol": "AAPL", "label": "AAPL • Apple Inc"},
-    "MSFT": {"symbol": "MSFT", "label": "MSFT • Microsoft Corporation"},
-    "TSLA": {"symbol": "TSLA", "label": "TSLA • Tesla Inc"},
-    "AMZN": {"symbol": "AMZN", "label": "AMZN • Amazon.com Inc"},
-    "GOOGL": {"symbol": "GOOGL", "label": "GOOGL • Alphabet Inc"},
-}
+with st.container(border=True):
+    # Row 1: Exchange selector + Search Input
+    c_exch, c_search = st.columns([1, 2])
+    with c_exch:
+        market_choice = st.radio(
+            "Exchange",
+            ["🇮🇳 NSE (India)", "🇺🇸 US (NASDAQ/NYSE)"],
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+    with c_search:
+        searched_val = st.text_input(
+            "Ticker Search",
+            value=st.session_state.search_query,
+            placeholder="🔍 Enter ticker (e.g. RELIANCE, TCS, NVDA, TSLA...)",
+            label_visibility="collapsed",
+        ).strip().upper()
 
-if market_region == "🇮🇳 Indian Markets (NSE)":
-    catalog = INDIAN_STOCKS
-    default_key = "RELIANCE"
-else:
-    catalog = US_STOCKS
-    default_key = "NVDA"
+    # Row 2: 1-Tap Quick Watchlist Chips (Horizontal Pills)
+    current_catalog = INDIAN_STOCKS if "NSE" in market_choice else US_STOCKS
+    
+    # Handle user clicking quick chips
+    selected_chip = st.pills(
+        "Hot Watchlist:",
+        current_catalog,
+        selection_mode="single",
+        label_visibility="collapsed",
+    )
+    if selected_chip and selected_chip != st.session_state.search_query:
+        st.session_state.search_query = selected_chip
+        st.rerun()
 
-options = ["Choose from Popular..."] + [item["label"] for item in catalog.values()]
-selected_option = st.sidebar.selectbox("Standard Watchlist", options)
+    # Row 3: Horizontal Period Pills + Chart Style + Indicators
+    c_p1, c_p2, c_p3 = st.columns([2, 1, 1])
+    with c_p1:
+        timeframe_label = st.segmented_control(
+            "Period",
+            ["1M", "3M", "6M", "1Y", "2Y", "5Y"],
+            default="1Y",
+            label_visibility="collapsed",
+        ) or "1Y"
+        # Map label to yfinance period
+        period_map = {"1M": "1mo", "3M": "3mo", "6M": "6mo", "1Y": "1y", "2Y": "2y", "5Y": "5y"}
+        timeframe = period_map.get(timeframe_label, "1y")
 
-if selected_option != "Choose from Popular...":
-    matched_sym = [item["symbol"] for item in catalog.values() if item["label"] == selected_option][0]
-    default_input_val = matched_sym.replace(".NS", "").replace(".BO", "")
-else:
-    default_input_val = default_key
+    with c_p2:
+        chart_style = st.segmented_control(
+            "Style",
+            ["🕯️ Candles", "📈 Line"],
+            default="🕯️ Candles",
+            label_visibility="collapsed",
+        ) or "🕯️ Candles"
+        chart_type = "Candlestick" if "Candles" in chart_style else "Line"
 
-raw_ticker = st.sidebar.text_input("Or Enter Custom Ticker:", value=default_input_val).strip().upper()
+    with c_p3:
+        show_sma = st.checkbox("SMA 20/50", value=True)
 
-# Standardize ticker formatting
-if market_region == "🇮🇳 Indian Markets (NSE)":
-    if not raw_ticker.endswith(".NS") and not raw_ticker.endswith(".BO"):
-        ticker_input = f"{raw_ticker}.NS"
+# Format ticker symbol
+active_base = searched_val if searched_val else ("RELIANCE" if "NSE" in market_choice else "NVDA")
+if "NSE" in market_choice:
+    if not active_base.endswith(".NS") and not active_base.endswith(".BO"):
+        ticker_input = f"{active_base}.NS"
     else:
-        ticker_input = raw_ticker
+        ticker_input = active_base
 else:
-    ticker_input = raw_ticker
+    ticker_input = active_base
 
-timeframe = st.sidebar.selectbox(
-    "Chart Period:",
-    options=["1mo", "3mo", "6mo", "1y", "2y", "5y"],
-    index=3,
-)
-
-chart_type = st.sidebar.radio("Display Style:", ["Candlestick", "Line"], index=0)
-show_sma = st.sidebar.checkbox("Show 20 & 50-Day Moving Averages", value=True)
-
-st.sidebar.markdown("---")
-st.sidebar.subheader("🔴 Live Ticking")
+# 4. Sidebar: Optional Advanced Settings
+st.sidebar.markdown("### ⚙️ Terminal Settings")
 auto_refresh = st.sidebar.toggle("Auto-Refresh Market (15s)", value=False)
 
-st.sidebar.markdown("---")
-st.sidebar.subheader("🤖 AI News Analyst")
 secrets_api_key = st.secrets.get("GEMINI_API_KEY", "") if hasattr(st, "secrets") else ""
 gemini_key_input = st.sidebar.text_input(
-    "Google Gemini API Key (optional):",
+    "Google Gemini Key (optional):",
     value=secrets_api_key,
     type="password",
     help="Get a free key from aistudio.google.com to power AI sentiment reasoning.",
 )
 gemini_key = gemini_key_input.strip() or secrets_api_key
 
-# 3. Market Session Status
+# 5. Market Session Status
 market_info = get_market_status(ticker_input)
 
-# 4. Data Loading
+# 6. Data Loading
 @st.cache_data(ttl=15 if auto_refresh else 300, show_spinner=False)
 def load_data(symbol: str, period: str):
     return fetch_stock_data(symbol, period)
 
 def render_terminal():
-    with st.spinner(f"Connecting to market feed for {ticker_input}..."):
+    with st.spinner(f"Connecting to live feed for {ticker_input}..."):
         try:
             df, info, err = load_data(ticker_input, timeframe)
         except Exception as e:
@@ -192,7 +201,7 @@ def render_terminal():
 
     if err or df is None or info is None or df.empty:
         st.error(f"⚠️ {err or 'Unable to load data. Please check ticker symbol.'}")
-        if market_region == "🇮🇳 Indian Markets (NSE)":
+        if "NSE" in market_choice:
             st.info("Tip for Indian stocks: Enter symbols like RELIANCE, TCS, INFY, HDFCBANK, or TATAMOTORS.")
         st.stop()
 
@@ -213,23 +222,18 @@ def render_terminal():
     sector = info.get("sector", "N/A")
     industry = info.get("industry", "N/A")
 
-    # Standardized Ticker Metadata
+    # Standardized Ticker Metadata (e.g. 'NSE: RELIANCE' or 'NASDAQ: NVDA')
     meta = format_ticker_metadata(ticker_input, info)
 
     # Pre-Market and Post-Market Data
     ext_data = get_pre_post_market(info, current_price)
     active_session = market_info.get("session", "REGULAR")
 
-    # --- Header Bar ---
+    # Top Status Pill
     status_icon = "🟢" if active_session == "REGULAR" else ("🟡" if active_session == "PRE" else ("🌙" if active_session == "POST" else "🔴"))
-    st.markdown(f'''
-    <div class="status-badge">
-        <span>{status_icon}</span>
-        <span><b>{market_info['badge']}</b> &nbsp;•&nbsp; {market_info['details']}</span>
-    </div>
-    ''', unsafe_allow_html=True)
+    st.info(f"{status_icon} **{market_info['badge']}** &nbsp;•&nbsp; {market_info['details']}")
 
-    # Company Title & Tagline
+    # Standardized Company & Ticker Header
     st.title(f"🏛️ {company_name}")
     st.caption(
         f"**`{meta['flag']} {meta['standard_display']}`** &nbsp;|&nbsp; "
@@ -240,12 +244,8 @@ def render_terminal():
 
     st.write("")
 
-    # --- COMPACT & COLLAPSIBLE SESSION PRICING ---
-    # When Pre or Post market is actively trading, highlight it side-by-side.
-    # When the market is CLOSED or in Regular hours, collapse inactive extended hours to save mobile space!
-    
+    # --- COMPACT SESSION PRICING ---
     if active_session == "PRE" and ext_data["pre_price"]:
-        # Pre-Market is Live: Show Regular Close vs Live Pre-Market
         c_reg, c_pre = st.columns(2)
         with c_reg:
             with st.container(border=True):
@@ -264,7 +264,6 @@ def render_terminal():
                     delta=f"{pre_change:+,.2f} ({pre_pct:+.2f}%) vs Close",
                 )
     elif active_session == "POST" and ext_data["post_price"]:
-        # Post-Market is Live: Show Regular Close vs Live After-Hours
         c_reg, c_post = st.columns(2)
         with c_reg:
             with st.container(border=True):
@@ -283,8 +282,6 @@ def render_terminal():
                     delta=f"{post_change:+,.2f} ({post_pct:+.2f}%) vs Close",
                 )
     else:
-        # Regular trading or Market Closed / Weekend:
-        # Show clean single prominent Regular Price card
         with st.container(border=True):
             reg_badge = "🟢 LIVE TRADING SESSION" if active_session == "REGULAR" else "🏢 REGULAR MARKET CLOSE"
             st.metric(
@@ -293,7 +290,7 @@ def render_terminal():
                 delta=f"{day_change:+,.2f} ({day_change_pct:+.2f}%)",
             )
         
-        # Collapse Pre/Post market into compact expander during closed/weekend hours to save screen space
+        # Collapse extended hours during closed hours to save mobile space
         if ext_data["pre_price"] or ext_data["post_price"]:
             with st.expander("⏱️ View Extended Hours Data (Pre & Post Market)", expanded=False):
                 exp_c1, exp_c2 = st.columns(2)
@@ -339,10 +336,10 @@ def render_terminal():
     low_str = f"{curr_sym}{week_52_low:,.2f}" if week_52_low else "N/A"
 
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Market Capitalization", mcap_str)
-    k2.metric("P/E Valuation Ratio", pe_str)
-    k3.metric("52-Week Peak High", high_str)
-    k4.metric("52-Week Floor Low", low_str)
+    k1.metric("Market Cap", mcap_str)
+    k2.metric("P/E Ratio", pe_str)
+    k3.metric("52-Week High", high_str)
+    k4.metric("52-Week Low", low_str)
 
     st.write("")
 
@@ -351,7 +348,7 @@ def render_terminal():
 
     with tab_analysis:
         targets = get_price_targets(info, current_price)
-        st.subheader("🎯 Analyst Consensus & Targets")
+        st.subheader("🎯 Analyst Consensus & Price Targets")
 
         tc1, tc2, tc3, tc4 = st.columns(4)
         tc1.metric("Analyst Low", f"{curr_sym}{targets['low']:,.2f}" if targets["low"] else "N/A", delta=f"{targets['downside_low_pct']:+.1f}%" if targets["downside_low_pct"] else None, delta_color="inverse")
@@ -418,7 +415,7 @@ def render_terminal():
         st.write("")
         st.markdown("---")
 
-        # Technical Charting (Mobile optimized with touch-scroll safety)
+        # Technical Charting
         st.subheader("📊 Interactive Technical Action")
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08, row_heights=[0.75, 0.25])
         if chart_type == "Candlestick":
@@ -451,7 +448,7 @@ def render_terminal():
         fig.add_trace(go.Bar(x=df.index, y=df["Volume"], marker_color=vol_colors, name="Volume", opacity=0.6), row=2, col=1)
 
         fig.update_layout(
-            height=480,  # Compact height fits mobile screens comfortably
+            height=480,
             xaxis_rangeslider_visible=False,
             margin=dict(l=10, r=10, t=10, b=10),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
@@ -462,7 +459,6 @@ def render_terminal():
             yaxis=dict(showgrid=True, gridcolor="rgba(148, 163, 184, 0.15)", title=f"Price ({curr_sym})"),
             yaxis2=dict(showgrid=False, title="Volume"),
         )
-        # Mobile touch-friendly config: disable scrollZoom so page scrolling works smoothly on phones
         st.plotly_chart(
             fig,
             use_container_width=True,
