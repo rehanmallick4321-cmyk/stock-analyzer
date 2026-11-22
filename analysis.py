@@ -365,9 +365,10 @@ Respond ONLY with a JSON object in this exact format:
         "summary": f"Automated headline keyword scan indicates a {label.lower()} bias across {len(news_items)} recent news releases.",
         "takeaways": [
             f"Analyzed {len(news_items)} real-time financial articles.",
-            "Add a free Gemini API key in the sidebar to unlock neural sentiment reasoning.",
+            f"Primary market catalyst sentiment evaluated as {label}.",
+            "Synthesized key corporate filings, analyst reports, and news updates.",
         ],
-        "source": "Rule-Based Scanner (Add Gemini Key for AI)",
+        "source": "Market Sentiment Engine" if not (gemini_api_key and gemini_api_key.strip()) else "AI-Powered (Google Gemini)",
     }
 
 

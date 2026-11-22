@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -252,14 +253,12 @@ else:
 st.sidebar.markdown("### ⚙️ Terminal Settings")
 show_sma = st.sidebar.checkbox("Show 20 & 50-Day Moving Averages", value=True)
 
-secrets_api_key = st.secrets.get("GEMINI_API_KEY", "") if hasattr(st, "secrets") else ""
-gemini_key_input = st.sidebar.text_input(
-    "Google Gemini Key (optional):",
-    value=secrets_api_key,
-    type="password",
-    help="Get a free key from aistudio.google.com to power AI sentiment reasoning.",
-)
-gemini_key = gemini_key_input.strip() or secrets_api_key
+# Read Gemini API key silently from Streamlit Secrets or Environment if configured (hidden from UI)
+gemini_key = ""
+if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+    gemini_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+elif "GEMINI_API_KEY" in os.environ:
+    gemini_key = os.environ["GEMINI_API_KEY"].strip()
 
 # 7. Market Session Status (Shortened, Clean TradingView-style Pill)
 market_info = get_market_status(ticker_input)
