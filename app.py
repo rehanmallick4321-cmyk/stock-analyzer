@@ -98,7 +98,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# 4. Standardized Watchlist Catalog (No hardcoded pills)
+# 4. Standardized Watchlist Catalog
 INDIAN_STOCKS = {
     "RELIANCE": "RELIANCE • Reliance Industries",
     "TCS": "TCS • Tata Consultancy Services",
@@ -130,9 +130,9 @@ US_STOCKS = {
     "CUSTOM": "✍️ Custom Symbol...",
 }
 
-# 5. Horizontal Top Control Toolbar (Clean st.selectbox & st.segmented_control)
+# 5. Horizontal Top Control Toolbar (Including Horizontal Live Auto-Refresh)
 with st.container(border=True):
-    col_mkt, col_select, col_period, col_style = st.columns([1.2, 2.2, 1.8, 1.2])
+    col_mkt, col_select, col_period, col_style, col_refresh = st.columns([1.1, 2.0, 1.7, 1.1, 1.0])
 
     with col_mkt:
         market_choice = st.segmented_control(
@@ -180,6 +180,10 @@ with st.container(border=True):
         ) or "🕯️ Candles"
         chart_type = "Candlestick" if "Candles" in chart_style else "Line"
 
+    with col_refresh:
+        # Horizontal Live Auto-Refresh Toggle right in the toolbar
+        auto_refresh = st.toggle("⚡ Live (15s)", value=False, help="Auto-refresh prices and charts every 15 seconds")
+
 # Format ticker with exchange suffix
 if "NSE" in market_choice:
     if not active_ticker_base.endswith(".NS") and not active_ticker_base.endswith(".BO"):
@@ -189,9 +193,8 @@ if "NSE" in market_choice:
 else:
     ticker_input = active_ticker_base
 
-# 6. Sidebar: Advanced Settings
+# 6. Sidebar: Advanced Settings & Indicators
 st.sidebar.markdown("### ⚙️ Terminal Settings")
-auto_refresh = st.sidebar.toggle("Auto-Refresh Market (15s)", value=False)
 show_sma = st.sidebar.checkbox("Show 20 & 50-Day Moving Averages", value=True)
 
 secrets_api_key = st.secrets.get("GEMINI_API_KEY", "") if hasattr(st, "secrets") else ""
@@ -330,7 +333,6 @@ def render_terminal():
     rsi_tag = "Overbought" if rsi_val > 70 else ("Oversold" if rsi_val < 30 else "Neutral")
 
     beta_val = info.get("beta")
-    beta_str = f"{beta_val:.2f}" if beta_val else "N/A"
 
     # Render KPI Cards Grid
     with st.container(border=True):
