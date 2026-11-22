@@ -8,63 +8,149 @@ import json
 from typing import Dict, Any, Tuple, Optional, List
 
 
-def get_market_status() -> Dict[str, Any]:
+def format_ticker_metadata(ticker_symbol: str, info: Dict[str, Any]) -> Dict[str, str]:
     """
-    Determines whether the US Stock Market (NYSE/NASDAQ) is currently in
-    Regular Trading, Pre-Market, After-Hours, or Closed in US Eastern Time.
+    Standardizes ticker symbols into professional financial terminal format
+    (e.g., 'NSE: RELIANCE' or 'NASDAQ: NVDA') with country flags and exchange badges.
     """
-    et_tz = pytz.timezone("America/New_York")
-    now_et = datetime.datetime.now(et_tz)
-    weekday = now_et.weekday()
+    clean_sym = ticker_symbol.strip().upper()
+    exchange = (info.get("exchange") or "").upper()
 
-    is_weekend = weekday >= 5
-    current_time = now_et.time()
-    market_open = datetime.time(9, 30)
-    market_close = datetime.time(16, 0)
-    pre_open = datetime.time(4, 0)
-    after_close = datetime.time(20, 0)
-
-    if is_weekend:
+    if clean_sym.endswith(".NS"):
+        base = clean_sym[:-3]
         return {
-            "session": "CLOSED",
-            "badge": "🔴 Market Closed (Weekend)",
-            "color": "#EF4444",
-            "details": f"Opens Monday 9:30 AM ET (Current: {now_et.strftime('%a %I:%M %p ET')})",
+            "base_symbol": base,
+            "standard_display": f"NSE: {base}",
+            "exchange_name": "National Stock Exchange of India (NSE)",
+            "flag": "🇮🇳",
+            "market_tag": "INDIAN EQUITIES",
         }
-    elif market_open <= current_time < market_close:
+    elif clean_sym.endswith(".BO"):
+        base = clean_sym[:-3]
         return {
-            "session": "REGULAR",
-            "badge": "🟢 US Market Live",
-            "color": "#10B981",
-            "details": f"Closes 4:00 PM ET (Current: {now_et.strftime('%I:%M %p ET')})",
-        }
-    elif pre_open <= current_time < market_open:
-        return {
-            "session": "PRE",
-            "badge": "🟡 Pre-Market Session",
-            "color": "#F59E0B",
-            "details": f"Regular bell at 9:30 AM ET (Current: {now_et.strftime('%I:%M %p ET')})",
-        }
-    elif market_close <= current_time < after_close:
-        return {
-            "session": "POST",
-            "badge": "🌙 After-Hours Session",
-            "color": "#8B5CF6",
-            "details": f"After-hours closes 8:00 PM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+            "base_symbol": base,
+            "standard_display": f"BSE: {base}",
+            "exchange_name": "Bombay Stock Exchange (BSE)",
+            "flag": "🇮🇳",
+            "market_tag": "INDIAN EQUITIES",
         }
     else:
+        # Detect US exchange
+        exch_label = "NASDAQ" if "NMS" in exchange or "NGS" in exchange or "NASDAQ" in exchange else ("NYSE" if "NYQ" in exchange or "NYSE" in exchange else "US")
         return {
-            "session": "CLOSED",
-            "badge": "🔴 Market Closed (Night)",
-            "color": "#64748B",
-            "details": f"Pre-market opens 4:00 AM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+            "base_symbol": clean_sym,
+            "standard_display": f"{exch_label}: {clean_sym}",
+            "exchange_name": f"{exch_label} (United States)",
+            "flag": "🇺🇸",
+            "market_tag": "US EQUITIES",
         }
+
+
+def get_market_status(ticker_symbol: str = "") -> Dict[str, Any]:
+    """
+    Determines whether the market for the specified stock is currently open.
+    Supports both Indian Exchanges (NSE/BSE via Asia/Kolkata) and US Exchanges (NYSE/NASDAQ via America/New_York).
+    """
+    clean_sym = ticker_symbol.strip().upper()
+    is_indian_stock = clean_sym.endswith(".NS") or clean_sym.endswith(".BO")
+
+    if is_indian_stock:
+        ist_tz = pytz.timezone("Asia/Kolkata")
+        now_ist = datetime.datetime.now(ist_tz)
+        weekday = now_ist.weekday()
+
+        is_weekend = weekday >= 5
+        current_time = now_ist.time()
+        market_open = datetime.time(9, 15)
+        market_close = datetime.time(15, 30)
+        pre_open = datetime.time(9, 0)
+        post_close = datetime.time(16, 0)
+
+        if is_weekend:
+            return {
+                "session": "CLOSED",
+                "badge": "🔴 NSE/BSE Closed (Weekend)",
+                "color": "#EF4444",
+                "details": f"Opens Monday 9:15 AM IST (Current: {now_ist.strftime('%a %I:%M %p IST')})",
+            }
+        elif market_open <= current_time < market_close:
+            return {
+                "session": "REGULAR",
+                "badge": "🟢 NSE/BSE Market LIVE",
+                "color": "#10B981",
+                "details": f"Trading until 3:30 PM IST (Current: {now_ist.strftime('%I:%M %p IST')})",
+            }
+        elif pre_open <= current_time < market_open:
+            return {
+                "session": "PRE",
+                "badge": "🟡 NSE Pre-Market Auction",
+                "color": "#F59E0B",
+                "details": f"Regular bell 9:15 AM IST (Current: {now_ist.strftime('%I:%M %p IST')})",
+            }
+        elif market_close <= current_time < post_close:
+            return {
+                "session": "POST",
+                "badge": "🌙 Post-Market Closing Session",
+                "color": "#8B5CF6",
+                "details": f"Closes 4:00 PM IST (Current: {now_ist.strftime('%I:%M %p IST')})",
+            }
+        else:
+            return {
+                "session": "CLOSED",
+                "badge": "🔴 NSE/BSE Market Closed",
+                "color": "#64748B",
+                "details": f"Opens 9:15 AM IST (Current: {now_ist.strftime('%I:%M %p IST')})",
+            }
+    else:
+        et_tz = pytz.timezone("America/New_York")
+        now_et = datetime.datetime.now(et_tz)
+        weekday = now_et.weekday()
+
+        is_weekend = weekday >= 5
+        current_time = now_et.time()
+        market_open = datetime.time(9, 30)
+        market_close = datetime.time(16, 0)
+        pre_open = datetime.time(4, 0)
+        after_close = datetime.time(20, 0)
+
+        if is_weekend:
+            return {
+                "session": "CLOSED",
+                "badge": "🔴 US Market Closed (Weekend)",
+                "color": "#EF4444",
+                "details": f"Opens Monday 9:30 AM ET (Current: {now_et.strftime('%a %I:%M %p ET')})",
+            }
+        elif market_open <= current_time < market_close:
+            return {
+                "session": "REGULAR",
+                "badge": "🟢 US Market Live",
+                "color": "#10B981",
+                "details": f"Closes 4:00 PM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+            }
+        elif pre_open <= current_time < market_open:
+            return {
+                "session": "PRE",
+                "badge": "🟡 US Pre-Market Session",
+                "color": "#F59E0B",
+                "details": f"Regular bell 9:30 AM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+            }
+        elif market_close <= current_time < after_close:
+            return {
+                "session": "POST",
+                "badge": "🌙 US After-Hours Session",
+                "color": "#8B5CF6",
+                "details": f"After-hours closes 8:00 PM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+            }
+        else:
+            return {
+                "session": "CLOSED",
+                "badge": "🔴 US Market Closed (Night)",
+                "color": "#64748B",
+                "details": f"Pre-market opens 4:00 AM ET (Current: {now_et.strftime('%I:%M %p ET')})",
+            }
 
 
 def get_pre_post_market(info: Dict[str, Any], regular_price: float) -> Dict[str, Any]:
-    """
-    Extracts live Pre-Market and Post-Market (After-Hours) trading prices and percentage moves.
-    """
     pre_price = info.get("preMarketPrice")
     pre_pct = info.get("preMarketChangePercent")
     pre_change = info.get("preMarketChange")
@@ -92,10 +178,6 @@ def get_pre_post_market(info: Dict[str, Any], regular_price: float) -> Dict[str,
 
 
 def fetch_stock_data(ticker_symbol: str, period: str = "1y") -> Tuple[Optional[pd.DataFrame], Optional[Dict[str, Any]], Optional[str]]:
-    """
-    Fetches historical OHLCV data and company fundamentals from Yahoo Finance.
-    Includes custom headers and timeouts to prevent hanging on cloud servers (AWS/Streamlit Cloud).
-    """
     clean_symbol = ticker_symbol.strip().upper()
     if not clean_symbol:
         return None, None, "Please enter a valid stock ticker symbol."
@@ -133,6 +215,7 @@ def fetch_stock_data(ticker_symbol: str, period: str = "1y") -> Tuple[Optional[p
                     "fiftyTwoWeekHigh": getattr(fast, "year_high", None),
                     "fiftyTwoWeekLow": getattr(fast, "year_low", None),
                     "currency": getattr(fast, "currency", "USD"),
+                    "exchange": getattr(fast, "exchange", ""),
                 }
             except Exception:
                 info = {"longName": clean_symbol, "currency": "USD"}
@@ -143,10 +226,6 @@ def fetch_stock_data(ticker_symbol: str, period: str = "1y") -> Tuple[Optional[p
 
 
 def fetch_stock_news(ticker_symbol: str) -> List[Dict[str, Any]]:
-    """
-    Fetches the latest news headlines and publishers for a given stock ticker,
-    supporting both nested `content` structures in modern yfinance and legacy formats.
-    """
     clean_symbol = ticker_symbol.strip().upper()
     try:
         session = requests.Session()
@@ -161,9 +240,9 @@ def fetch_stock_news(ticker_symbol: str) -> List[Dict[str, Any]]:
             c = item.get("content", item)
             title = c.get("title") or c.get("headline")
             
-            provider = "Market News"
+            provider = "Financial News"
             if isinstance(c.get("provider"), dict):
-                provider = c.get("provider", {}).get("displayName", "Market News")
+                provider = c.get("provider", {}).get("displayName", "Financial News")
             elif c.get("publisher"):
                 provider = c.get("publisher")
 
@@ -199,19 +278,16 @@ def analyze_news_sentiment(
     ticker_symbol: str,
     news_items: List[Dict[str, Any]],
     current_price: float,
-    company_name: str
+    company_name: str,
+    currency_symbol: str = "$"
 ) -> Dict[str, Any]:
-    """
-    Uses Google Gemini to analyze market news sentiment for the stock,
-    returning a score (-10 to +10), a label, an executive summary, and key takeaways.
-    """
     if not news_items:
         return {
             "score": 0,
             "label": "NEUTRAL",
             "color": "#64748B",
             "summary": f"No recent news articles detected for {ticker_symbol}. Neutral sentiment assumed.",
-            "takeaways": ["Monitoring for fresh press releases and corporate disclosures."],
+            "takeaways": ["Monitoring for fresh corporate filings and market updates."],
         }
 
     headlines_text = "\n".join([f"- {item['title']} (Source: {item['publisher']})" for item in news_items])
@@ -224,7 +300,7 @@ def analyze_news_sentiment(
 
             prompt = f"""
 You are a senior hedge fund market sentiment analyst.
-Analyze the following recent news headlines for {company_name} ({ticker_symbol}), currently trading at ${current_price:.2f}.
+Analyze the following recent news headlines for {company_name} ({ticker_symbol}), currently trading at {currency_symbol}{current_price:,.2f}.
 
 Headlines:
 {headlines_text}
@@ -266,8 +342,7 @@ Respond ONLY with a JSON object in this exact format:
         except Exception as e:
             print(f"Gemini API call failed: {e}")
 
-    # Fallback heuristic analysis
-    bullish_keywords = ["growth", "soars", "record", "profit", "beats", "upgrade", "buy", "ai", "high", "gain", "surge", "strong"]
+    bullish_keywords = ["growth", "soars", "record", "profit", "beats", "upgrade", "buy", "ai", "high", "gain", "surge", "strong", "rally"]
     bearish_keywords = ["falls", "drops", "slumps", "plunge", "loss", "downgrade", "sell", "lawsuit", "investigation", "miss", "weak", "cut"]
 
     score = 0
@@ -321,7 +396,7 @@ def get_price_targets(info: Dict[str, Any], current_price: float) -> Dict[str, A
     }
 
 
-def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: float, targets: Dict[str, Any]) -> Dict[str, Any]:
+def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: float, targets: Dict[str, Any], currency_sym: str = "$") -> Dict[str, Any]:
     latest_close = current_price
     sma_20 = df["SMA_20"].iloc[-1] if "SMA_20" in df and not pd.isna(df["SMA_20"].iloc[-1]) else latest_close
     sma_50 = df["SMA_50"].iloc[-1] if "SMA_50" in df and not pd.isna(df["SMA_50"].iloc[-1]) else latest_close
@@ -343,26 +418,26 @@ def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: fl
     if revenue_growth and revenue_growth > 0:
         bull_points.append(f"Accelerating Revenue Growth: Expanding at {revenue_growth * 100:.1f}% YoY.")
     else:
-        bull_points.append("Core product stability and defensive cash-flow generation.")
+        bull_points.append("Core market leadership and defensive cash-flow generation.")
 
     if profit_margin and profit_margin > 0.15:
         bull_points.append(f"High Profitability: Robust net profit margins of {profit_margin * 100:.1f}%.")
     else:
-        bull_points.append("Margin expansion potential through operational efficiency.")
+        bull_points.append("Margin expansion potential through operational scale.")
 
     if latest_close >= sma_50:
-        bull_points.append(f"Bullish Trend: Holding firmly above the 50-day moving average (${sma_50:.2f}).")
+        bull_points.append(f"Bullish Trend: Holding firmly above the 50-day moving average ({currency_sym}{sma_50:,.2f}).")
     elif rsi < 35:
         bull_points.append(f"Oversold Bounce: RSI is at {rsi:.1f}, indicating high potential for mean-reversion rally.")
     else:
-        bull_points.append(f"Technical momentum testing resistance near 52-week high of ${high_52:.2f}.")
+        bull_points.append(f"Technical momentum testing resistance near 52-week high of {currency_sym}{high_52:,.2f}.")
 
     if targets["opinions_count"] and targets["opinions_count"] > 5:
-        bull_points.append(f"Wall Street Consensus: Covered by {targets['opinions_count']} analysts with a '{targets['recommendation']}' consensus.")
+        bull_points.append(f"Wall Street / Dalal Street Consensus: Covered by {targets['opinions_count']} analysts with a '{targets['recommendation']}' rating.")
 
     bear_points = []
     if pe and pe > 40:
-        bear_points.append(f"Valuation Risk: Elevated P/E ratio ({pe:.1f}x) leaves little margin for error.")
+        bear_points.append(f"Valuation Risk: Elevated P/E ratio ({pe:.1f}x) leaves little buffer for earnings misses.")
     elif pe:
         bear_points.append(f"Multiple Compression: P/E is {pe:.1f}x, which could compress during risk-off market shifts.")
     else:
@@ -371,14 +446,14 @@ def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: fl
     if debt_to_equity and debt_to_equity > 150:
         bear_points.append(f"Leverage Concerns: Elevated Debt-to-Equity ratio of {debt_to_equity:.1f}%.")
     else:
-        bear_points.append("Vulnerability to higher-for-longer interest rates and macro liquidity tightening.")
+        bear_points.append("Vulnerability to interest rate environment and macro liquidity tightening.")
 
     if latest_close < sma_50:
-        bear_points.append(f"Technical Breakdown: Trading below the critical 50-day moving average (${sma_50:.2f}).")
+        bear_points.append(f"Technical Breakdown: Trading below the critical 50-day moving average ({currency_sym}{sma_50:,.2f}).")
     elif rsi > 70:
         bear_points.append(f"Overbought Territory: RSI is at {rsi:.1f}, signaling elevated risk of short-term pullback.")
     else:
-        bear_points.append(f"Downside buffer risk towards 52-week support around ${low_52:.2f}.")
+        bear_points.append(f"Downside support test towards 52-week support around {currency_sym}{low_52:,.2f}.")
 
     return {
         "bull": {
