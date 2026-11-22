@@ -13,22 +13,84 @@ from analysis import (
     format_ticker_metadata,
 )
 
-# 1. Page Configuration with Enhanced Branding Symbol
+# 1. Page Configuration
 st.set_page_config(
     page_title="APEX // Global Market Terminal",
     page_icon="💎",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",  # Mobile best practice: start collapsed for clean view
 )
+
+# Mobile-First Responsive CSS Styling
+st.markdown("""
+<style>
+    /* Mobile-first responsive spacing & touch optimizations */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 1rem !important;
+            padding-bottom: 2rem !important;
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+        }
+        h1 {
+            font-size: 1.6rem !important;
+            line-height: 1.25 !important;
+        }
+        h2, h3 {
+            font-size: 1.25rem !important;
+        }
+        /* Allow columns to wrap cleanly on mobile screens */
+        [data-testid="column"] {
+            min-width: 48% !important;
+            margin-bottom: 8px !important;
+        }
+        .stMetric {
+            padding: 6px !important;
+        }
+        .stMetric label {
+            font-size: 0.78rem !important;
+        }
+        .stMetric div[data-testid="stMetricValue"] {
+            font-size: 1.4rem !important;
+        }
+    }
+
+    /* Clean typography & card styling */
+    .hero-price-container {
+        border-radius: 12px;
+        padding: 4px;
+        margin-bottom: 12px;
+    }
+    
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 9999px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        background-color: var(--secondary-background-color, #1e293b);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        color: var(--text-color, #f8fafc);
+        margin-bottom: 10px;
+    }
+
+    /* Prevent charts from stealing mobile scroll */
+    .js-plotly-plot {
+        touch-action: pan-y !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # 2. Sidebar Controls & Branding
 st.sidebar.markdown("""
 <div style="margin-bottom: 15px;">
-    <h2 style="margin: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em;">
+    <h2 style="margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em;">
         💎 APEX TERMINAL
     </h2>
-    <div style="font-size: 0.8rem; opacity: 0.7; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;">
-        Global Equity Intelligence & AI Analytics
+    <div style="font-size: 0.75rem; opacity: 0.75; font-weight: 600; text-transform: uppercase;">
+        Global Equity & AI Intelligence
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -40,7 +102,6 @@ market_region = st.sidebar.radio(
     index=0,
 )
 
-# Standardized Ticker Catalog with Clear Company Names
 INDIAN_STOCKS = {
     "RELIANCE": {"symbol": "RELIANCE.NS", "label": "RELIANCE • Reliance Industries"},
     "TCS": {"symbol": "TCS.NS", "label": "TCS • Tata Consultancy Services"},
@@ -74,7 +135,6 @@ options = ["Choose from Popular..."] + [item["label"] for item in catalog.values
 selected_option = st.sidebar.selectbox("Standard Watchlist", options)
 
 if selected_option != "Choose from Popular...":
-    # Match symbol from selected option
     matched_sym = [item["symbol"] for item in catalog.values() if item["label"] == selected_option][0]
     default_input_val = matched_sym.replace(".NS", "").replace(".BO", "")
 else:
@@ -82,7 +142,7 @@ else:
 
 raw_ticker = st.sidebar.text_input("Or Enter Custom Ticker:", value=default_input_val).strip().upper()
 
-# Standardize ticker formatting behind the scenes
+# Standardize ticker formatting
 if market_region == "🇮🇳 Indian Markets (NSE)":
     if not raw_ticker.endswith(".NS") and not raw_ticker.endswith(".BO"):
         ticker_input = f"{raw_ticker}.NS"
@@ -133,7 +193,7 @@ def render_terminal():
     if err or df is None or info is None or df.empty:
         st.error(f"⚠️ {err or 'Unable to load data. Please check ticker symbol.'}")
         if market_region == "🇮🇳 Indian Markets (NSE)":
-            st.info("Tip for Indian stocks: Enter standard symbols like RELIANCE, TCS, INFY, HDFCBANK, or TATAMOTORS.")
+            st.info("Tip for Indian stocks: Enter symbols like RELIANCE, TCS, INFY, HDFCBANK, or TATAMOTORS.")
         st.stop()
 
     close_series = df["Close"].dropna()
@@ -153,88 +213,104 @@ def render_terminal():
     sector = info.get("sector", "N/A")
     industry = info.get("industry", "N/A")
 
-    # Standardized Ticker Metadata (e.g. 'NSE: RELIANCE' or 'NASDAQ: NVDA')
+    # Standardized Ticker Metadata
     meta = format_ticker_metadata(ticker_input, info)
 
     # Pre-Market and Post-Market Data
     ext_data = get_pre_post_market(info, current_price)
     active_session = market_info.get("session", "REGULAR")
 
-    # --- Header Top Bar ---
+    # --- Header Bar ---
     status_icon = "🟢" if active_session == "REGULAR" else ("🟡" if active_session == "PRE" else ("🌙" if active_session == "POST" else "🔴"))
-    st.info(f"{status_icon} **{market_info['badge']}** &nbsp;•&nbsp; {market_info['details']}")
+    st.markdown(f'''
+    <div class="status-badge">
+        <span>{status_icon}</span>
+        <span><b>{market_info['badge']}</b> &nbsp;•&nbsp; {market_info['details']}</span>
+    </div>
+    ''', unsafe_allow_html=True)
 
-    # Standardized Company & Ticker Header
-    col_title, col_meta = st.columns([3, 1])
-    with col_title:
-        st.title(f"🏛️ {company_name}")
-        st.markdown(
-            f"**`{meta['flag']} {meta['standard_display']}`** &nbsp;|&nbsp; "
-            f"Exchange: **{meta['exchange_name']}** &nbsp;|&nbsp; "
-            f"Currency: **{currency} ({curr_sym})** &nbsp;|&nbsp; "
-            f"Sector: **{sector}**"
-        )
-    with col_meta:
-        st.write("")
-        st.caption("💎 **APEX EQUITY FEED**")
-        st.caption(f"Asset Class: **{meta['market_tag']}**")
+    # Company Title & Tagline
+    st.title(f"🏛️ {company_name}")
+    st.caption(
+        f"**`{meta['flag']} {meta['standard_display']}`** &nbsp;|&nbsp; "
+        f"Exchange: **{meta['exchange_name']}** &nbsp;|&nbsp; "
+        f"Currency: **{currency} ({curr_sym})** &nbsp;|&nbsp; "
+        f"Sector: **{sector}**"
+    )
 
     st.write("")
 
-    # --- Live Multi-Session Price Cards (Native Streamlit Containers) ---
-    col_reg, col_pre, col_post = st.columns(3)
-
-    # 1. Regular Market Price Card
-    with col_reg:
+    # --- COMPACT & COLLAPSIBLE SESSION PRICING ---
+    # When Pre or Post market is actively trading, highlight it side-by-side.
+    # When the market is CLOSED or in Regular hours, collapse inactive extended hours to save mobile space!
+    
+    if active_session == "PRE" and ext_data["pre_price"]:
+        # Pre-Market is Live: Show Regular Close vs Live Pre-Market
+        c_reg, c_pre = st.columns(2)
+        with c_reg:
+            with st.container(border=True):
+                st.metric(
+                    label=f"🏢 Regular Close ({meta['standard_display']})",
+                    value=f"{curr_sym}{current_price:,.2f}",
+                    delta=f"{day_change:+,.2f} ({day_change_pct:+.2f}%)",
+                )
+        with c_pre:
+            with st.container(border=True):
+                pre_change = ext_data["pre_change"] or 0.0
+                pre_pct = ext_data["pre_pct"] or 0.0
+                st.metric(
+                    label="🌅 PRE-MARKET (LIVE NOW)",
+                    value=f"{curr_sym}{ext_data['pre_price']:,.2f}",
+                    delta=f"{pre_change:+,.2f} ({pre_pct:+.2f}%) vs Close",
+                )
+    elif active_session == "POST" and ext_data["post_price"]:
+        # Post-Market is Live: Show Regular Close vs Live After-Hours
+        c_reg, c_post = st.columns(2)
+        with c_reg:
+            with st.container(border=True):
+                st.metric(
+                    label=f"🏢 Regular Close ({meta['standard_display']})",
+                    value=f"{curr_sym}{current_price:,.2f}",
+                    delta=f"{day_change:+,.2f} ({day_change_pct:+.2f}%)",
+                )
+        with c_post:
+            with st.container(border=True):
+                post_change = ext_data["post_change"] or 0.0
+                post_pct = ext_data["post_pct"] or 0.0
+                st.metric(
+                    label="🌙 AFTER-HOURS (LIVE NOW)",
+                    value=f"{curr_sym}{ext_data['post_price']:,.2f}",
+                    delta=f"{post_change:+,.2f} ({post_pct:+.2f}%) vs Close",
+                )
+    else:
+        # Regular trading or Market Closed / Weekend:
+        # Show clean single prominent Regular Price card
         with st.container(border=True):
-            reg_label = f"🏢 REGULAR SESSION ({meta['standard_display']})" if active_session == "REGULAR" else f"🏢 Regular Session ({meta['standard_display']})"
+            reg_badge = "🟢 LIVE TRADING SESSION" if active_session == "REGULAR" else "🏢 REGULAR MARKET CLOSE"
             st.metric(
-                label=reg_label,
+                label=f"{reg_badge} ({meta['standard_display']})",
                 value=f"{curr_sym}{current_price:,.2f}",
                 delta=f"{day_change:+,.2f} ({day_change_pct:+.2f}%)",
             )
-
-    # 2. Pre-Market Price Card
-    with col_pre:
-        with st.container(border=True):
-            pre_val = ext_data["pre_price"]
-            if pre_val:
-                pre_change = ext_data["pre_change"] or 0.0
-                pre_pct = ext_data["pre_pct"] or 0.0
-                pre_label = "🌅 PRE-MARKET (LIVE NOW)" if active_session == "PRE" else "🌅 Pre-Market Price"
-                st.metric(
-                    label=pre_label,
-                    value=f"{curr_sym}{pre_val:,.2f}",
-                    delta=f"{pre_change:+,.2f} ({pre_pct:+.2f}%) vs Close",
-                )
-            else:
-                st.metric(
-                    label="🌅 Pre-Market / Call Auction",
-                    value="Closed / N/A",
-                    delta="Pre-open session",
-                    delta_color="off",
-                )
-
-    # 3. Post-Market / After-Hours Price Card
-    with col_post:
-        with st.container(border=True):
-            post_val = ext_data["post_price"]
-            if post_val:
-                post_change = ext_data["post_change"] or 0.0
-                post_pct = ext_data["post_pct"] or 0.0
-                post_label = "🌙 POST-MARKET (LIVE NOW)" if active_session == "POST" else "🌙 Post-Market Price"
-                st.metric(
-                    label=post_label,
-                    value=f"{curr_sym}{post_val:,.2f}",
-                    delta=f"{post_change:+,.2f} ({post_pct:+.2f}%) vs Close",
-                )
-            else:
-                st.metric(
-                    label="🌙 Post-Market / After-Hours",
-                    value="Closed / N/A",
-                    delta="Closing session",
-                    delta_color="off",
-                )
+        
+        # Collapse Pre/Post market into compact expander during closed/weekend hours to save screen space
+        if ext_data["pre_price"] or ext_data["post_price"]:
+            with st.expander("⏱️ View Extended Hours Data (Pre & Post Market)", expanded=False):
+                exp_c1, exp_c2 = st.columns(2)
+                with exp_c1:
+                    if ext_data["pre_price"]:
+                        p_ch = ext_data["pre_change"] or 0.0
+                        p_pc = ext_data["pre_pct"] or 0.0
+                        st.metric("🌅 Pre-Market Recorded", f"{curr_sym}{ext_data['pre_price']:,.2f}", f"{p_ch:+,.2f} ({p_pc:+.2f}%)")
+                    else:
+                        st.caption("No pre-market quote recorded for this session.")
+                with exp_c2:
+                    if ext_data["post_price"]:
+                        po_ch = ext_data["post_change"] or 0.0
+                        po_pc = ext_data["post_pct"] or 0.0
+                        st.metric("🌙 After-Hours Recorded", f"{curr_sym}{ext_data['post_price']:,.2f}", f"{po_ch:+,.2f} ({po_pc:+.2f}%)")
+                    else:
+                        st.caption("No post-market quote recorded for this session.")
 
     st.write("")
 
@@ -275,7 +351,7 @@ def render_terminal():
 
     with tab_analysis:
         targets = get_price_targets(info, current_price)
-        st.subheader("🎯 Analyst Consensus & Price Targets")
+        st.subheader("🎯 Analyst Consensus & Targets")
 
         tc1, tc2, tc3, tc4 = st.columns(4)
         tc1.metric("Analyst Low", f"{curr_sym}{targets['low']:,.2f}" if targets["low"] else "N/A", delta=f"{targets['downside_low_pct']:+.1f}%" if targets["downside_low_pct"] else None, delta_color="inverse")
@@ -300,8 +376,8 @@ def render_terminal():
             fig_target.add_trace(go.Scatter(x=[targets["mean"]], y=["Price Range"], mode="markers+text", name="Mean", text=[f"Mean {curr_sym}{targets['mean']:.0f}"], textposition="bottom center", marker=dict(color="#F59E0B", size=14, symbol="triangle-up")))
             fig_target.add_trace(go.Scatter(x=[targets["high"]], y=["Price Range"], mode="markers+text", name="High", text=[f"High {curr_sym}{targets['high']:.0f}"], textposition="bottom center", marker=dict(color="#10B981", size=14, symbol="diamond")))
             fig_target.update_layout(
-                height=140,
-                margin=dict(l=20, r=20, t=25, b=25),
+                height=130,
+                margin=dict(l=10, r=10, t=25, b=25),
                 xaxis=dict(showgrid=True, title=f"Price ({currency})", zeroline=False),
                 yaxis=dict(showticklabels=False),
                 showlegend=False,
@@ -309,7 +385,11 @@ def render_terminal():
                 paper_bgcolor="rgba(0,0,0,0)",
                 font=dict(color="gray"),
             )
-            st.plotly_chart(fig_target, use_container_width=True)
+            st.plotly_chart(
+                fig_target,
+                use_container_width=True,
+                config={'displayModeBar': False, 'scrollZoom': False, 'responsive': True}
+            )
 
         st.write("")
 
@@ -338,7 +418,7 @@ def render_terminal():
         st.write("")
         st.markdown("---")
 
-        # Technical Charting
+        # Technical Charting (Mobile optimized with touch-scroll safety)
         st.subheader("📊 Interactive Technical Action")
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.08, row_heights=[0.75, 0.25])
         if chart_type == "Candlestick":
@@ -371,9 +451,9 @@ def render_terminal():
         fig.add_trace(go.Bar(x=df.index, y=df["Volume"], marker_color=vol_colors, name="Volume", opacity=0.6), row=2, col=1)
 
         fig.update_layout(
-            height=560,
+            height=480,  # Compact height fits mobile screens comfortably
             xaxis_rangeslider_visible=False,
-            margin=dict(l=20, r=20, t=20, b=20),
+            margin=dict(l=10, r=10, t=10, b=10),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
@@ -382,7 +462,16 @@ def render_terminal():
             yaxis=dict(showgrid=True, gridcolor="rgba(148, 163, 184, 0.15)", title=f"Price ({curr_sym})"),
             yaxis2=dict(showgrid=False, title="Volume"),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        # Mobile touch-friendly config: disable scrollZoom so page scrolling works smoothly on phones
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={
+                'scrollZoom': False,
+                'displayModeBar': False,
+                'responsive': True,
+            }
+        )
 
         with st.expander("📁 View & Download Historical Price Data"):
             st.dataframe(df.sort_index(ascending=False), use_container_width=True)
@@ -415,8 +504,8 @@ def render_terminal():
                         ],
                     }
                 ))
-                fig_gauge.update_layout(height=260, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)", font=dict(color="gray"))
-                st.plotly_chart(fig_gauge, use_container_width=True)
+                fig_gauge.update_layout(height=240, margin=dict(l=10, r=10, t=35, b=10), paper_bgcolor="rgba(0,0,0,0)", font=dict(color="gray"))
+                st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False, 'responsive': True})
 
             with sg2:
                 st.markdown(f"#### 📝 Executive Market Summary")
