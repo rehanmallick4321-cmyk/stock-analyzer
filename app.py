@@ -57,6 +57,61 @@ st.markdown("""
         margin: 2px 0 8px 0;
     }
 
+    /* Segmented Control Breathing Room & Anti-Clipping */
+    [data-testid="stSegmentedControl"] {
+        min-width: 100% !important;
+    }
+    [data-testid="stSegmentedControl"] [role="radiogroup"] {
+        gap: 3px !important;
+        padding: 2px 3px !important;
+    }
+    [data-testid="stSegmentedControl"] button {
+        padding-left: 9px !important;
+        padding-right: 9px !important;
+        font-size: 0.81rem !important;
+        text-overflow: clip !important;
+        overflow: visible !important;
+    }
+
+    /* Bloomberg / TradingView Styled Badges */
+    .tv-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+    }
+    .tv-badge-ticker {
+        background-color: rgba(59, 130, 246, 0.12);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.25);
+    }
+    .tv-badge-live {
+        background-color: rgba(34, 197, 94, 0.12);
+        color: #22c55e;
+        border: 1px solid rgba(34, 197, 94, 0.25);
+    }
+    .tv-badge-closed {
+        background-color: rgba(148, 163, 184, 0.12);
+        color: #94a3b8;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+    .tv-badge-pre {
+        background-color: rgba(234, 179, 8, 0.12);
+        color: #eab308;
+        border: 1px solid rgba(234, 179, 8, 0.25);
+    }
+    .tv-badge-post {
+        background-color: rgba(168, 85, 247, 0.12);
+        color: #a855f7;
+        border: 1px solid rgba(168, 85, 247, 0.25);
+    }
+
     /* Mobile Responsive Column Tiling */
     @media (max-width: 768px) {
         .block-container {
@@ -132,7 +187,7 @@ US_STOCKS = {
 
 # 5. Horizontal Top Control Toolbar (Including Horizontal Live Auto-Refresh)
 with st.container(border=True):
-    col_mkt, col_select, col_period, col_style, col_refresh = st.columns([1.1, 2.0, 1.7, 1.1, 1.0])
+    col_mkt, col_select, col_period, col_style, col_refresh = st.columns([1.3, 2.2, 1.7, 1.45, 1.25])
 
     with col_mkt:
         market_choice = st.segmented_control(
@@ -181,8 +236,8 @@ with st.container(border=True):
         chart_type = "Candlestick" if "Candles" in chart_style else "Line"
 
     with col_refresh:
-        # Horizontal Live Auto-Refresh Toggle right in the toolbar
-        auto_refresh = st.toggle("⚡ Live (15s)", value=False, help="Auto-refresh prices and charts every 15 seconds")
+        # Compact label and wider ratio to prevent any truncation with '...'
+        auto_refresh = st.toggle("⚡ Live", value=False, help="Auto-refresh prices and charts every 15 seconds")
 
 # Format ticker with exchange suffix
 if "NSE" in market_choice:
@@ -206,17 +261,19 @@ gemini_key_input = st.sidebar.text_input(
 )
 gemini_key = gemini_key_input.strip() or secrets_api_key
 
-# 7. Market Session Status (Shortened, Compact Banner)
+# 7. Market Session Status (Shortened, Clean TradingView-style Pill)
 market_info = get_market_status(ticker_input)
 active_session = market_info.get("session", "REGULAR")
-status_icon = "🟢" if active_session == "REGULAR" else ("🟡" if active_session == "PRE" else ("🌙" if active_session == "POST" else "🔴"))
+clean_badge = market_info.get("badge", "").replace("🔴", "").replace("🟢", "").replace("🟡", "").replace("🌙", "").strip()
+pill_status = "LIVE" if active_session == "REGULAR" else ("PRE-MKT" if active_session == "PRE" else ("POST-MKT" if active_session == "POST" else "CLOSED"))
+pill_cls = "tv-badge-live" if active_session == "REGULAR" else ("tv-badge-pre" if active_session == "PRE" else ("tv-badge-post" if active_session == "POST" else "tv-badge-closed"))
 
 st.markdown(f"""
 <div class="compact-market-pill">
-    <span>{status_icon}</span>
-    <span><b>{market_info['badge']}</b></span>
-    <span style="opacity: 0.5;">•</span>
-    <span>{market_info['details']}</span>
+    <span class="tv-badge {pill_cls}" style="font-size: 0.68rem; padding: 1px 6px;">{pill_status}</span>
+    <span><b>{clean_badge}</b></span>
+    <span style="opacity: 0.4;">•</span>
+    <span style="opacity: 0.85;">{market_info.get('details', '')}</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -255,36 +312,49 @@ def render_terminal():
     # Pre/Post market data
     ext_data = get_pre_post_market(info, current_price)
 
-    # Compact Header
-    st.markdown(f"### 🏛️ {company_name} &nbsp; `[{meta['flag']} {meta['standard_display']}]`")
-    st.caption(f"Sector: **{sector}** &nbsp;•&nbsp; Currency: **{currency} ({curr_sym})** &nbsp;•&nbsp; Exchange: **{meta['exchange_name']}**")
+    # Bloomberg / TradingView Styled Clean Header (No emojis)
+    hdr_status = "LIVE" if active_session == "REGULAR" else ("PRE-MARKET" if active_session == "PRE" else ("AFTER-HOURS" if active_session == "POST" else "CLOSED"))
+    hdr_cls = "tv-badge-live" if active_session == "REGULAR" else ("tv-badge-pre" if active_session == "PRE" else ("tv-badge-post" if active_session == "POST" else "tv-badge-closed"))
 
-    # --- Live Price Hero Card (Compact & Collapsible) ---
+    st.markdown(f"""
+    <div style="display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px 0;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em;">{company_name}</span>
+            <span class="tv-badge tv-badge-ticker">{meta['standard_display']}</span>
+            <span class="tv-badge {hdr_cls}">{hdr_status}</span>
+        </div>
+        <div style="font-size: 0.8rem; opacity: 0.7; font-weight: 500;">
+            {sector} &nbsp;•&nbsp; Currency: <b>{currency} ({curr_sym})</b> &nbsp;•&nbsp; <b>{meta['exchange_name']}</b>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- Live Price Hero Card (Bloomberg/TradingView Clean Badges: e.g. "NASDAQ: NVDA • CLOSED") ---
     if active_session == "PRE" and ext_data["pre_price"]:
         c_reg, c_ext = st.columns(2)
         with c_reg:
             with st.container(border=True):
-                st.metric(f"🏢 Regular Close ({meta['standard_display']})", f"{curr_sym}{current_price:,.2f}", f"{day_change:+,.2f} ({day_change_pct:+.2f}%)")
+                st.metric(f"{meta['standard_display']} • REGULAR CLOSE", f"{curr_sym}{current_price:,.2f}", f"{day_change:+,.2f} ({day_change_pct:+.2f}%)")
         with c_ext:
             with st.container(border=True):
                 pre_ch = ext_data["pre_change"] or 0.0
                 pre_pc = ext_data["pre_pct"] or 0.0
-                st.metric("🌅 PRE-MARKET (LIVE NOW)", f"{curr_sym}{ext_data['pre_price']:,.2f}", f"{pre_ch:+,.2f} ({pre_pc:+.2f}%) vs Close")
+                st.metric(f"{meta['standard_display']} • PRE-MARKET", f"{curr_sym}{ext_data['pre_price']:,.2f}", f"{pre_ch:+,.2f} ({pre_pc:+.2f}%) vs Close")
     elif active_session == "POST" and ext_data["post_price"]:
         c_reg, c_ext = st.columns(2)
         with c_reg:
             with st.container(border=True):
-                st.metric(f"🏢 Regular Close ({meta['standard_display']})", f"{curr_sym}{current_price:,.2f}", f"{day_change:+,.2f} ({day_change_pct:+.2f}%)")
+                st.metric(f"{meta['standard_display']} • REGULAR CLOSE", f"{curr_sym}{current_price:,.2f}", f"{day_change:+,.2f} ({day_change_pct:+.2f}%)")
         with c_ext:
             with st.container(border=True):
                 post_ch = ext_data["post_change"] or 0.0
                 post_pc = ext_data["post_pct"] or 0.0
-                st.metric("🌙 AFTER-HOURS (LIVE NOW)", f"{curr_sym}{ext_data['post_price']:,.2f}", f"{post_ch:+,.2f} ({post_pc:+.2f}%) vs Close")
+                st.metric(f"{meta['standard_display']} • AFTER-HOURS", f"{curr_sym}{ext_data['post_price']:,.2f}", f"{post_ch:+,.2f} ({post_pc:+.2f}%) vs Close")
     else:
         with st.container(border=True):
-            reg_badge = "🟢 LIVE TRADING" if active_session == "REGULAR" else "🏢 REGULAR MARKET CLOSE"
+            hero_session_label = "LIVE" if active_session == "REGULAR" else "CLOSED"
             st.metric(
-                label=f"{reg_badge} ({meta['standard_display']})",
+                label=f"{meta['standard_display']} • {hero_session_label}",
                 value=f"{curr_sym}{current_price:,.2f}",
                 delta=f"{day_change:+,.2f} ({day_change_pct:+.2f}%)",
             )
@@ -295,16 +365,16 @@ def render_terminal():
                 ec1, ec2 = st.columns(2)
                 with ec1:
                     if ext_data["pre_price"]:
-                        st.metric("🌅 Pre-Market", f"{curr_sym}{ext_data['pre_price']:,.2f}", f"{ext_data['pre_change'] or 0.0:+,.2f} ({ext_data['pre_pct'] or 0.0:+.2f}%)")
+                        st.metric(f"{meta['standard_display']} • Pre-Market", f"{curr_sym}{ext_data['pre_price']:,.2f}", f"{ext_data['pre_change'] or 0.0:+,.2f} ({ext_data['pre_pct'] or 0.0:+.2f}%)")
                     else:
                         st.caption("No pre-market quote recorded.")
                 with ec2:
                     if ext_data["post_price"]:
-                        st.metric("🌙 After-Hours", f"{curr_sym}{ext_data['post_price']:,.2f}", f"{ext_data['post_change'] or 0.0:+,.2f} ({ext_data['post_pct'] or 0.0:+.2f}%)")
+                        st.metric(f"{meta['standard_display']} • After-Hours", f"{curr_sym}{ext_data['post_price']:,.2f}", f"{ext_data['post_change'] or 0.0:+,.2f} ({ext_data['post_pct'] or 0.0:+.2f}%)")
                     else:
                         st.caption("No post-market quote recorded.")
 
-    # --- 6-PACK HIGH-IMPACT KPI METRIC CARDS ---
+    # --- 6-PACK HIGH-IMPACT KPI METRIC CARDS (UNIFORM VISUAL SYMMETRY) ---
     pe_ratio = info.get("trailingPE") or info.get("forwardPE")
     forward_pe = info.get("forwardPE")
     market_cap = info.get("marketCap")
@@ -312,16 +382,32 @@ def render_terminal():
     if market_cap:
         if currency == "INR":
             mcap_str = f"₹{market_cap / 1e12:.2f} Lakh Cr" if market_cap >= 1e12 else f"₹{market_cap / 1e7:,.0f} Cr"
+            cap_badge = "Large Cap" if market_cap >= 2e11 else ("Mid Cap" if market_cap >= 5e10 else "Small Cap")
         else:
             mcap_str = f"${market_cap / 1e12:.2f}T" if market_cap >= 1e12 else f"${market_cap / 1e9:.2f}B"
+            cap_badge = "Mega Cap" if market_cap >= 2e11 else ("Large Cap" if market_cap >= 1e10 else "Mid Cap")
     else:
         mcap_str = "N/A"
+        cap_badge = None
 
     pe_str = f"{pe_ratio:.1f}x" if pe_ratio else "N/A"
     week_52_high = info.get("fiftyTwoWeekHigh")
     week_52_low = info.get("fiftyTwoWeekLow")
     high_str = f"{curr_sym}{week_52_high:,.2f}" if week_52_high else "N/A"
     low_str = f"{curr_sym}{week_52_low:,.2f}" if week_52_low else "N/A"
+
+    # Subtle helper badges under 52W High and 52W Low (% from High / % from Low) for visual symmetry
+    if week_52_high and current_price:
+        pct_from_high = ((current_price - week_52_high) / week_52_high) * 100
+        high_delta = f"{pct_from_high:+.1f}% from High"
+    else:
+        high_delta = None
+
+    if week_52_low and current_price:
+        pct_from_low = ((current_price - week_52_low) / week_52_low) * 100
+        low_delta = f"{pct_from_low:+.1f}% from Low"
+    else:
+        low_delta = None
 
     # Volume & Technicals
     latest_vol = df["Volume"].iloc[-1] if "Volume" in df and len(df) > 0 else 0
@@ -332,16 +418,14 @@ def render_terminal():
     rsi_val = df["RSI_14"].iloc[-1] if "RSI_14" in df and not pd.isna(df["RSI_14"].iloc[-1]) else 50.0
     rsi_tag = "Overbought" if rsi_val > 70 else ("Oversold" if rsi_val < 30 else "Neutral")
 
-    beta_val = info.get("beta")
-
-    # Render KPI Cards Grid
+    # Render KPI Cards Grid (All 6 columns have uniform height & delta badges)
     with st.container(border=True):
         st.markdown("<div style='font-size:0.78rem; font-weight:700; text-transform:uppercase; opacity:0.75; margin-bottom:4px;'>📊 Key Valuation & Risk KPIs</div>", unsafe_allow_html=True)
         kp1, kp2, kp3, kp4, kp5, kp6 = st.columns(6)
-        kp1.metric("Market Cap", mcap_str)
+        kp1.metric("Market Cap", mcap_str, cap_badge, delta_color="off")
         kp2.metric("P/E Ratio", pe_str, f"Fwd: {forward_pe:.1f}x" if forward_pe else None, delta_color="off")
-        kp3.metric("52W High", high_str)
-        kp4.metric("52W Low", low_str)
+        kp3.metric("52W High", high_str, high_delta, delta_color="off")
+        kp4.metric("52W Low", low_str, low_delta, delta_color="off")
         kp5.metric("Day Volume", vol_str, f"Avg: {avg_vol_str}", delta_color="off")
         kp6.metric("RSI (14D)", f"{rsi_val:.1f}", rsi_tag, delta_color="inverse" if rsi_val > 70 else "normal")
 
