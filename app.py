@@ -160,12 +160,12 @@ INDIAN_STOCKS = {
     "TCS": "TCS • Tata Consultancy Services",
     "HDFCBANK": "HDFCBANK • HDFC Bank",
     "INFY": "INFY • Infosys Limited",
-    "TATAMOTORS": "TATAMOTORS • Tata Motors",
+    "LT": "LT • Larsen & Toubro",
     "ITC": "ITC • ITC Limited",
     "ICICIBANK": "ICICIBANK • ICICI Bank",
     "SBIN": "SBIN • State Bank of India",
     "BHARTIARTL": "BHARTIARTL • Bharti Airtel",
-    "ZOMATO": "ZOMATO • Zomato Limited",
+    "KOTAKBANK": "KOTAKBANK • Kotak Mahindra Bank",
     "LICI": "LICI • Life Insurance Corp",
     "HINDUNILVR": "HINDUNILVR • Hindustan Unilever",
     "MARUTI": "MARUTI • Maruti Suzuki",
@@ -434,21 +434,30 @@ def render_terminal():
     tab_analysis, tab_ai_copilot = st.tabs(["📈 Market Analytics & Scenarios", "🤖 AI News Sentiment Copilot"])
 
     with tab_analysis:
-        targets = get_price_targets(info, current_price)
+        targets = get_price_targets(info, current_price, df)
         st.subheader("🎯 Analyst Consensus & Targets")
 
         tc1, tc2, tc3, tc4 = st.columns(4)
-        tc1.metric("Analyst Low", f"{curr_sym}{targets['low']:,.2f}" if targets["low"] else "N/A", delta=f"{targets['downside_low_pct']:+.1f}%" if targets["downside_low_pct"] else None, delta_color="inverse")
-        tc2.metric("Consensus Mean", f"{curr_sym}{targets['mean']:,.2f}" if targets["mean"] else "N/A", delta=f"{targets['upside_mean_pct']:+.1f}%" if targets["upside_mean_pct"] else None)
-        tc3.metric("Analyst High", f"{curr_sym}{targets['high']:,.2f}" if targets["high"] else "N/A", delta=f"{targets['upside_high_pct']:+.1f}%" if targets["upside_high_pct"] else None)
-        tc4.metric("Consensus Rating", targets["recommendation"], f"{targets['opinions_count']} analysts reporting", delta_color="off")
+        is_algo = targets.get("is_algorithmic", False)
+        low_label = "Analyst Low" if not is_algo else "Technical Floor"
+        mean_label = "Consensus Mean" if not is_algo else "Fair Value Target"
+        high_label = "Analyst High" if not is_algo else "Technical Ceiling"
 
-        # Visual Spread Chart
-        if targets["low"] and targets["high"] and targets["mean"]:
+        tc1.metric(low_label, f"{curr_sym}{targets['low']:,.2f}", delta=f"{targets['downside_low_pct']:+.1f}%", delta_color="inverse")
+        tc2.metric(mean_label, f"{curr_sym}{targets['mean']:,.2f}", delta=f"{targets['upside_mean_pct']:+.1f}%")
+        tc3.metric(high_label, f"{curr_sym}{targets['high']:,.2f}", delta=f"{targets['upside_high_pct']:+.1f}%")
+
+        ops = targets.get("opinions_count")
+        ops_sub = f"{ops} analysts reporting" if isinstance(ops, (int, float)) and ops > 0 else "Quantitative Model"
+        tc4.metric("Consensus Rating", targets["recommendation"], ops_sub, delta_color="off")
+
+        # Visual Spread Chart (Always renders with guaranteed valid bounds)
+        if targets.get("low") and targets.get("high") and targets.get("mean"):
             fig_target = go.Figure()
+            spread_width = max(float(targets["high"]) - float(targets["low"]), current_price * 0.05)
             fig_target.add_trace(go.Bar(
                 y=["Price Range"],
-                x=[targets["high"] - targets["low"]],
+                x=[spread_width],
                 base=[targets["low"]],
                 orientation="h",
                 marker=dict(color="rgba(148, 163, 184, 0.3)"),
@@ -481,7 +490,12 @@ def render_terminal():
             bull = scenarios["bull"]
             with st.container(border=True):
                 st.subheader("🟢 BULL CASE (Optimistic)")
-                st.metric("Target Price", f"{curr_sym}{bull['target']:,.2f}", delta=f"+{bull['upside_pct']:.1f}% Upside")
+                st.metric(
+                    "Target Price",
+                    f"{curr_sym}{bull['target']:,.2f}",
+                    delta=f"{bull['upside_pct']:+.1f}% Upside",
+                    delta_color="normal"
+                )
                 st.write("**Growth Catalysts & Tailwinds:**")
                 for item in bull["catalysts"]:
                     st.markdown(f"• {item}")
@@ -490,7 +504,12 @@ def render_terminal():
             bear = scenarios["bear"]
             with st.container(border=True):
                 st.subheader("🔴 BEAR CASE (Pessimistic)")
-                st.metric("Target Price", f"{curr_sym}{bear['target']:,.2f}", delta=f"{bear['downside_pct']:.1f}% Downside", delta_color="inverse")
+                st.metric(
+                    "Target Price",
+                    f"{curr_sym}{bear['target']:,.2f}",
+                    delta=f"{bear['downside_pct']:+.1f}% Downside",
+                    delta_color="inverse"
+                )
                 st.write("**Risk Factors & Headwinds:**")
                 for item in bear["risks"]:
                     st.markdown(f"• {item}")

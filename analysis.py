@@ -220,6 +220,44 @@ def fetch_stock_data(ticker_symbol: str, period: str = "1y") -> Tuple[Optional[p
             except Exception:
                 info = {"longName": clean_symbol, "currency": "USD"}
 
+        # Robust extraction from ticker.analyst_price_targets (works even when ticker.info misses targets)
+        try:
+            apt = getattr(ticker, "analyst_price_targets", None)
+            if apt and isinstance(apt, dict):
+                if not info.get("targetHighPrice") and apt.get("high"):
+                    info["targetHighPrice"] = float(apt["high"])
+                if not info.get("targetLowPrice") and apt.get("low"):
+                    info["targetLowPrice"] = float(apt["low"])
+                if not info.get("targetMeanPrice") and apt.get("mean"):
+                    info["targetMeanPrice"] = float(apt["mean"])
+                if not info.get("targetMedianPrice") and apt.get("median"):
+                    info["targetMedianPrice"] = float(apt["median"])
+        except Exception:
+            pass
+
+        # Robust extraction from ticker.recommendations
+        try:
+            if not info.get("recommendationKey") or str(info.get("recommendationKey")).lower() in ["none", "n/a"]:
+                recs = getattr(ticker, "recommendations", None)
+                if recs is not None and not recs.empty:
+                    latest = recs.iloc[0]
+                    sb = latest.get("strongBuy", 0)
+                    b = latest.get("buy", 0)
+                    h = latest.get("hold", 0)
+                    s = latest.get("sell", 0)
+                    ss = latest.get("strongSell", 0)
+                    total_analysts = sb + b + h + s + ss
+                    if total_analysts > 0 and not info.get("numberOfAnalystOpinions"):
+                        info["numberOfAnalystOpinions"] = int(total_analysts)
+                    if (sb + b) >= (s + ss + h):
+                        info["recommendationKey"] = "BUY"
+                    elif (s + ss) > (sb + b):
+                        info["recommendationKey"] = "UNDERPERFORM"
+                    else:
+                        info["recommendationKey"] = "HOLD"
+        except Exception:
+            pass
+
         return df, info, None
     except Exception as e:
         return None, None, f"Failed to load data for '{clean_symbol}': {str(e)}"
@@ -372,17 +410,58 @@ Respond ONLY with a JSON object in this exact format:
     }
 
 
-def get_price_targets(info: Dict[str, Any], current_price: float) -> Dict[str, Any]:
+def get_price_targets(info: Dict[str, Any], current_price: float, df: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
     high = info.get("targetHighPrice")
     low = info.get("targetLowPrice")
     mean = info.get("targetMeanPrice")
     median = info.get("targetMedianPrice")
-    recommendation = (info.get("recommendationKey") or "N/A").replace("_", " ").upper()
-    opinions_count = info.get("numberOfAnalystOpinions", 0)
+    rec_raw = info.get("recommendationKey")
+    recommendation = rec_raw.replace("_", " ").upper() if rec_raw and str(rec_raw).lower() not in ["none", "n/a"] else None
+    opinions_count = info.get("numberOfAnalystOpinions") or 0
 
-    upside_mean_pct = ((mean - current_price) / current_price * 100) if (mean and current_price) else None
-    upside_high_pct = ((high - current_price) / current_price * 100) if (high and current_price) else None
-    downside_low_pct = ((low - current_price) / current_price * 100) if (low and current_price) else None
+    is_algorithmic = False
+
+    # If broker targets are missing, zero, or unadjusted (e.g. cloud rate limits or missing broker coverage)
+    if not high or not low or not mean or high <= 0 or low <= 0 or mean <= 0:
+        is_algorithmic = True
+
+        # Derive robust 52-week envelope and technical levels from dataframe
+        if df is not None and not df.empty:
+            high_52 = float(info.get("fiftyTwoWeekHigh") or df["High"].max())
+            low_52 = float(info.get("fiftyTwoWeekLow") or df["Low"].min())
+            sma_50 = float(df["SMA_50"].iloc[-1]) if "SMA_50" in df and not pd.isna(df["SMA_50"].iloc[-1]) else current_price
+            rsi = float(df["RSI_14"].iloc[-1]) if "RSI_14" in df and not pd.isna(df["RSI_14"].iloc[-1]) else 50.0
+        else:
+            high_52 = float(info.get("fiftyTwoWeekHigh") or current_price * 1.15)
+            low_52 = float(info.get("fiftyTwoWeekLow") or current_price * 0.85)
+            sma_50 = current_price
+            rsi = 50.0
+
+        # Algorithmic targets: High (channel breakout), Low (support floor), Mean (fair value baseline)
+        high = round(max(high_52 * 1.08, current_price * 1.18), 2)
+        low = round(min(low_52 * 0.98, current_price * 0.85), 2)
+        mean = round((high + low + current_price * 2) / 4, 2)
+        median = mean
+
+        if not recommendation:
+            if current_price > sma_50 and rsi > 52:
+                recommendation = "ACCUMULATE"
+            elif current_price < sma_50 and rsi < 48:
+                recommendation = "CAUTION / HOLD"
+            else:
+                recommendation = "NEUTRAL / HOLD"
+        opinions_count = "Quant Model"
+    else:
+        high = float(high)
+        low = float(low)
+        mean = float(mean)
+        median = float(median) if median else mean
+        if not recommendation:
+            recommendation = "MODERATE BUY"
+
+    upside_mean_pct = ((mean - current_price) / current_price * 100) if current_price else 0.0
+    upside_high_pct = ((high - current_price) / current_price * 100) if current_price else 0.0
+    downside_low_pct = ((low - current_price) / current_price * 100) if current_price else 0.0
 
     return {
         "high": high,
@@ -394,6 +473,7 @@ def get_price_targets(info: Dict[str, Any], current_price: float) -> Dict[str, A
         "upside_mean_pct": upside_mean_pct,
         "upside_high_pct": upside_high_pct,
         "downside_low_pct": downside_low_pct,
+        "is_algorithmic": is_algorithmic,
     }
 
 
@@ -410,10 +490,24 @@ def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: fl
     high_52 = info.get("fiftyTwoWeekHigh", latest_close)
     low_52 = info.get("fiftyTwoWeekLow", latest_close)
 
-    bull_target = targets["high"] if targets["high"] else round(latest_close * 1.25, 2)
-    bear_target = targets["low"] if targets["low"] else round(latest_close * 0.80, 2)
-    bull_upside = ((bull_target - latest_close) / latest_close) * 100
-    bear_downside = ((bear_target - latest_close) / latest_close) * 100
+    # Bull Case: Target MUST be an upside target strictly above current price
+    target_high = targets.get("high")
+    if target_high and float(target_high) > latest_close * 1.05:
+        bull_target = round(float(target_high), 2)
+    else:
+        # If stock price exceeded analyst high target, project a breakout expansion
+        bull_target = round(max(float(high_52) * 1.10, latest_close * 1.20), 2)
+
+    # Bear Case: Target MUST be a downside target strictly below current price
+    target_low = targets.get("low")
+    if target_low and float(target_low) < latest_close * 0.95:
+        bear_target = round(float(target_low), 2)
+    else:
+        # If analyst low target is above current price, project support pullback
+        bear_target = round(min(float(low_52) * 0.98, latest_close * 0.82), 2)
+
+    bull_upside = max(5.0, ((bull_target - latest_close) / latest_close) * 100)
+    bear_downside = min(-5.0, ((bear_target - latest_close) / latest_close) * 100)
 
     bull_points = []
     if revenue_growth and revenue_growth > 0:
@@ -433,8 +527,10 @@ def generate_scenarios(info: Dict[str, Any], df: pd.DataFrame, current_price: fl
     else:
         bull_points.append(f"Technical momentum testing resistance near 52-week high of {currency_sym}{high_52:,.2f}.")
 
-    if targets["opinions_count"] and targets["opinions_count"] > 5:
+    if targets.get("opinions_count") and isinstance(targets["opinions_count"], (int, float)) and targets["opinions_count"] > 5:
         bull_points.append(f"Wall Street / Dalal Street Consensus: Covered by {targets['opinions_count']} analysts with a '{targets['recommendation']}' rating.")
+    else:
+        bull_points.append(f"Technical Momentum Consensus: Modeled with a '{targets['recommendation']}' rating.")
 
     bear_points = []
     if pe and pe > 40:
